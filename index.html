@@ -3,164 +3,269 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sipariş Dağıtım Listesi</title>
+<title>Sipariş Dağıtım Takip</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyAXGKVX0C5wcO4V1t0XiGvSH5JOzAxDfvE",
+  authDomain: "unlumamultakip.firebaseapp.com",
+  databaseURL: "https://unlumamultakip-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "unlumamultakip",
+  storageBucket: "unlumamultakip.firebasestorage.app",
+  messagingSenderId: "627772395906",
+  appId: "1:627772395906:web:29e684c7ecd0eeaa587f9b"
+});
+const db = firebase.database();
+</script>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #FDF6EC 0%, #F5E6D3 100%); min-height: 100vh; }
-@media print { .no-print { display: none !important; } body { background: #fff; } table { font-size: 11px; } }
-input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; }
-.toast { position: fixed; top: 20px; right: 20px; padding: 14px 24px; border-radius: 12px; color: #fff; font-weight: 700; font-size: 14px; z-index: 9999; animation: slideIn 0.3s ease, fadeOut 0.5s ease 2s forwards; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
-@keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
-.history-row:hover { background: #FFF5E6 !important; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(135deg,#FDF6EC 0%,#F5E6D3 100%);min-height:100vh}
+@media print{.no-print{display:none!important}body{background:#fff}table{font-size:11px}}
+.toast{position:fixed;top:20px;right:20px;padding:14px 24px;border-radius:12px;color:#fff;font-weight:700;font-size:14px;z-index:9999;animation:slideIn .3s ease,fadeOut .5s ease 2s forwards;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+@keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes fadeOut{from{opacity:1}to{opacity:0}}
+.sync-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.history-row:hover{background:#FFF5E6!important}
+.loading-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(253,246,236,.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000}
+.spinner{width:48px;height:48px;border:4px solid #E8D5C0;border-top-color:#8B4513;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useCallback, useRef, useEffect } = React;
+const {useState,useCallback,useRef,useEffect}=React;
 
-const SHOPS = [
-  { id: "koc", name: "KOÇ ŞUBE" },
-  { id: "merol", name: "MEROL" },
-  { id: "inc", name: "İNC. ŞUBE" },
-  { id: "eko", name: "EKO MİNİ" },
-  { id: "seckin", name: "SEÇKİN BÜFE" },
-  { id: "ogrt", name: "ÖĞRT. EVİ" },
-  { id: "buyuk", name: "BÜYÜK DERE" },
+const SHOPS=[
+  {id:"koc",name:"KOÇ ŞUBE"},{id:"merol",name:"MEROL"},{id:"inc",name:"İNC. ŞUBE"},
+  {id:"eko",name:"EKO MİNİ"},{id:"seckin",name:"SEÇKİN BÜFE"},{id:"ogrt",name:"ÖĞRT. EVİ"},{id:"buyuk",name:"BÜYÜK DERE"},
 ];
 
-const DEFAULT_PRODUCTS = [
-  { id:1,name:"SÜTLÜ SİMİT",cat:"SİMİT",vals:{koc:120,merol:70,inc:30,eko:20,seckin:5,ogrt:0,buyuk:15}},
-  { id:2,name:"ÇITIR SİMİT",cat:"SİMİT",vals:{koc:40,merol:0,inc:15,eko:20,seckin:0,ogrt:0,buyuk:0}},
-  { id:3,name:"YAĞLI SİMİT",cat:"SİMİT",vals:{koc:10,merol:0,inc:0,eko:0,seckin:0,ogrt:0,buyuk:0}},
-  { id:4,name:"UZUN SMT ÇİKOLATA",cat:"SİMİT",vals:{koc:3,merol:0,inc:0,eko:0,seckin:0,ogrt:0,buyuk:0}},
-  { id:5,name:"UZUN SMT KAŞARLI",cat:"SİMİT",vals:{koc:3,merol:0,inc:0,eko:0,seckin:0,ogrt:0,buyuk:0}},
-  { id:6,name:"KUMRU",cat:"SİMİT",vals:{koc:7,merol:0,inc:5,eko:0,seckin:0,ogrt:0,buyuk:0}},
-  { id:7,name:"PUAÇA PEYNİRLİ",cat:"AÇMA",vals:{koc:5,merol:5,inc:0,eko:0,seckin:2,ogrt:0,buyuk:0}},
-  { id:8,name:"UZUN AÇMA PEYNİRLİ",cat:"AÇMA",vals:{koc:8,merol:3,inc:2,eko:5,seckin:0,ogrt:0,buyuk:0}},
-  { id:9,name:"UZUN AÇMA PATATESLİ",cat:"AÇMA",vals:{koc:7,merol:3,inc:2,eko:5,seckin:0,ogrt:0,buyuk:0}},
-  { id:10,name:"UZUN AÇMA KAŞARLI",cat:"AÇMA",vals:{koc:10,merol:0,inc:0,eko:5,seckin:0,ogrt:0,buyuk:0}},
-  { id:11,name:"UZUN AÇMA ÇİKOLATALI",cat:"AÇMA",vals:{koc:3,merol:0,inc:0,eko:5,seckin:0,ogrt:0,buyuk:0}},
-  { id:12,name:"UZUN AÇMA ZEYTİNLİ",cat:"AÇMA",vals:{koc:0,merol:0,inc:0,eko:5,seckin:0,ogrt:0,buyuk:0}},
-  { id:13,name:"UZUN AÇMA TAHİNLİ",cat:"AÇMA",vals:{koc:3,merol:0,inc:0,eko:5,seckin:0,ogrt:0,buyuk:0}},
-  { id:14,name:"UZUN AÇMA SOSİSİLİ",cat:"AÇMA",vals:{koc:0,merol:0,inc:0,eko:5,seckin:0,ogrt:0,buyuk:0}},
-  { id:15,name:"AÇMA SADE",cat:"AÇMA",vals:{koc:15,merol:7,inc:6,eko:5,seckin:0,ogrt:0,buyuk:0}},
-  { id:16,name:"AÇMA ÇİKOLATALI",cat:"AÇMA",vals:{koc:5,merol:7,inc:2,eko:2,seckin:0,ogrt:0,buyuk:0}},
-  { id:17,name:"AÇMA CEVİZLİ",cat:"AÇMA",vals:{koc:3,merol:0,inc:2,eko:2,seckin:0,ogrt:0,buyuk:0}},
-  { id:18,name:"AÇMA ZEYTİNLİ",cat:"AÇMA",vals:{koc:3,merol:0,inc:2,eko:2,seckin:0,ogrt:0,buyuk:0}},
-  { id:19,name:"KARAKÖY PEYNİRLİ",cat:"KARAKÖY",vals:{koc:20,merol:15,inc:5,eko:10,seckin:5,ogrt:0,buyuk:0}},
-  { id:20,name:"KARAKÖY PATATESLİ",cat:"KARAKÖY",vals:{koc:15,merol:15,inc:10,eko:5,seckin:5,ogrt:0,buyuk:0}},
-  { id:21,name:"KARAKÖY KAŞARLI",cat:"KARAKÖY",vals:{koc:30,merol:15,inc:20,eko:10,seckin:5,ogrt:0,buyuk:20}},
-  { id:22,name:"KARAKÖY ÇİKOLATALI",cat:"KARAKÖY",vals:{koc:5,merol:0,inc:2,eko:5,seckin:0,ogrt:0,buyuk:0}},
-  { id:23,name:"KARAKÖY ZEYTİNLİ",cat:"KARAKÖY",vals:{koc:5,merol:0,inc:2,eko:2,seckin:0,ogrt:0,buyuk:0}},
-  { id:24,name:"KARAKÖY SOSİSLİ",cat:"KARAKÖY",vals:{koc:5,merol:0,inc:2,eko:2,seckin:0,ogrt:0,buyuk:0}},
-  { id:25,name:"KARAKÖY SADE",cat:"KARAKÖY",vals:{koc:5,merol:0,inc:0,eko:0,seckin:0,ogrt:0,buyuk:0}},
-  { id:26,name:"PİZZA",cat:"DİĞER",vals:{koc:10,merol:0,inc:2,eko:3,seckin:0,ogrt:0,buyuk:0}},
-  { id:27,name:"TAHİNLİ",cat:"DİĞER",vals:{koc:3,merol:0,inc:2,eko:2,seckin:0,ogrt:0,buyuk:0}},
-  { id:28,name:"KURABİYE",cat:"DİĞER",vals:{koc:10,merol:0,inc:0,eko:5,seckin:0,ogrt:0,buyuk:0}},
-  { id:29,name:"OTLU PUAÇA",cat:"DİĞER",vals:{koc:15,merol:0,inc:0,eko:15,seckin:0,ogrt:0,buyuk:0}},
-  { id:30,name:"YENİ TAHİNLİ",cat:"DİĞER",vals:{koc:2,merol:0,inc:0,eko:0,seckin:0,ogrt:0,buyuk:0}},
-  { id:31,name:"BOYOZ",cat:"BOYOZ",vals:{koc:25,merol:0,inc:10,eko:10,seckin:0,ogrt:0,buyuk:0}},
-  { id:32,name:"TAHİNLİ BOYOZ",cat:"BOYOZ",vals:{koc:15,merol:0,inc:3,eko:5,seckin:0,ogrt:0,buyuk:0}},
-  { id:33,name:"ÇİKOLATALI BOYOZ",cat:"BOYOZ",vals:{koc:5,merol:0,inc:5,eko:0,seckin:0,ogrt:0,buyuk:0}},
-  { id:34,name:"MİLFÖY BÜYÜK PEYNİRLİ",cat:"BOYOZ",vals:{koc:0,merol:0,inc:0,eko:0,seckin:0,ogrt:0,buyuk:0}},
-  { id:35,name:"MİLFÖY BÜYÜK KIYMALI",cat:"BOYOZ",vals:{koc:0,merol:0,inc:0,eko:0,seckin:0,ogrt:0,buyuk:0}},
-  { id:36,name:"MİLFÖY BÜYÜK PATATESLİ",cat:"BOYOZ",vals:{koc:0,merol:0,inc:0,eko:0,seckin:0,ogrt:0,buyuk:0}},
-  { id:37,name:"DOMATES KAŞAR BOYOZ",cat:"BOYOZ",vals:{koc:15,merol:0,inc:3,eko:5,seckin:0,ogrt:0,buyuk:0}},
-  { id:38,name:"ÇATAL PEYNİRLİ",cat:"ÇATAL",vals:{koc:10,merol:0,inc:2,eko:4,seckin:0,ogrt:0,buyuk:0}},
-  { id:39,name:"ÇATAL KIYMALI",cat:"ÇATAL",vals:{koc:15,merol:0,inc:3,eko:5,seckin:0,ogrt:0,buyuk:0}},
-  { id:40,name:"ÇATAL PATLICANLI",cat:"ÇATAL",vals:{koc:2,merol:0,inc:0,eko:0,seckin:0,ogrt:0,buyuk:0}},
-  { id:41,name:"ÇATAL PATATESLİ",cat:"ÇATAL",vals:{koc:5,merol:0,inc:0,eko:3,seckin:0,ogrt:0,buyuk:0}},
+const TEMPLATE=[
+  {id:1,name:"SÜTLÜ SİMİT",cat:"SİMİT"},{id:2,name:"ÇITIR SİMİT",cat:"SİMİT"},{id:3,name:"YAĞLI SİMİT",cat:"SİMİT"},
+  {id:4,name:"UZUN SMT ÇİKOLATA",cat:"SİMİT"},{id:5,name:"UZUN SMT KAŞARLI",cat:"SİMİT"},{id:6,name:"KUMRU",cat:"SİMİT"},
+  {id:7,name:"PUAÇA PEYNİRLİ",cat:"AÇMA"},{id:8,name:"UZUN AÇMA PEYNİRLİ",cat:"AÇMA"},{id:9,name:"UZUN AÇMA PATATESLİ",cat:"AÇMA"},
+  {id:10,name:"UZUN AÇMA KAŞARLI",cat:"AÇMA"},{id:11,name:"UZUN AÇMA ÇİKOLATALI",cat:"AÇMA"},{id:12,name:"UZUN AÇMA ZEYTİNLİ",cat:"AÇMA"},
+  {id:13,name:"UZUN AÇMA TAHİNLİ",cat:"AÇMA"},{id:14,name:"UZUN AÇMA SOSİSİLİ",cat:"AÇMA"},{id:15,name:"AÇMA SADE",cat:"AÇMA"},
+  {id:16,name:"AÇMA ÇİKOLATALI",cat:"AÇMA"},{id:17,name:"AÇMA CEVİZLİ",cat:"AÇMA"},{id:18,name:"AÇMA ZEYTİNLİ",cat:"AÇMA"},
+  {id:19,name:"KARAKÖY PEYNİRLİ",cat:"KARAKÖY"},{id:20,name:"KARAKÖY PATATESLİ",cat:"KARAKÖY"},{id:21,name:"KARAKÖY KAŞARLI",cat:"KARAKÖY"},
+  {id:22,name:"KARAKÖY ÇİKOLATALI",cat:"KARAKÖY"},{id:23,name:"KARAKÖY ZEYTİNLİ",cat:"KARAKÖY"},{id:24,name:"KARAKÖY SOSİSLİ",cat:"KARAKÖY"},
+  {id:25,name:"KARAKÖY SADE",cat:"KARAKÖY"},
+  {id:26,name:"PİZZA",cat:"DİĞER"},{id:27,name:"TAHİNLİ",cat:"DİĞER"},{id:28,name:"KURABİYE",cat:"DİĞER"},
+  {id:29,name:"OTLU PUAÇA",cat:"DİĞER"},{id:30,name:"YENİ TAHİNLİ",cat:"DİĞER"},
+  {id:31,name:"BOYOZ",cat:"BOYOZ"},{id:32,name:"TAHİNLİ BOYOZ",cat:"BOYOZ"},{id:33,name:"ÇİKOLATALI BOYOZ",cat:"BOYOZ"},
+  {id:34,name:"MİLFÖY BÜYÜK PEYNİRLİ",cat:"BOYOZ"},{id:35,name:"MİLFÖY BÜYÜK KIYMALI",cat:"BOYOZ"},{id:36,name:"MİLFÖY BÜYÜK PATATESLİ",cat:"BOYOZ"},
+  {id:37,name:"DOMATES KAŞAR BOYOZ",cat:"BOYOZ"},
+  {id:38,name:"ÇATAL PEYNİRLİ",cat:"ÇATAL"},{id:39,name:"ÇATAL KIYMALI",cat:"ÇATAL"},{id:40,name:"ÇATAL PATLICANLI",cat:"ÇATAL"},{id:41,name:"ÇATAL PATATESLİ",cat:"ÇATAL"},
 ];
 
-const CATEGORIES = ["SİMİT","AÇMA","KARAKÖY","DİĞER","BOYOZ","ÇATAL"];
-const CAT_COLORS = {"SİMİT":"#D4A574","AÇMA":"#E8C07A","KARAKÖY":"#C1886D","DİĞER":"#A8B5A2","BOYOZ":"#D4A090","ÇATAL":"#B8A9C9"};
-const DAYS_TR = ["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];
-const MONTHS_TR = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+const FIRST_VALS={koc:[120,40,10,3,3,7,5,8,7,10,3,0,3,0,15,5,3,3,20,15,30,5,5,5,5,10,3,10,15,2,25,15,5,0,0,0,15,10,15,2,5],merol:[70,0,0,0,0,0,5,3,3,0,0,0,0,0,7,7,0,0,15,15,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],inc:[30,15,0,0,0,5,0,2,2,0,0,0,0,0,6,2,2,2,5,10,20,2,2,2,0,2,2,0,0,0,10,3,5,0,0,0,3,2,3,0,0],eko:[20,20,0,0,0,0,0,5,5,5,5,5,5,5,5,2,2,2,10,5,10,5,2,2,0,3,2,5,15,0,10,5,0,0,0,0,5,4,5,0,3],seckin:[5,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,5,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],ogrt:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],buyuk:[15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]};
 
-function fmtDate(ds) { const d = new Date(ds+"T00:00:00"); return `${d.getDate()} ${MONTHS_TR[d.getMonth()]} ${d.getFullYear()} ${DAYS_TR[d.getDay()]}`; }
-function today() { return new Date().toISOString().slice(0,10); }
-function loadH() { try { return JSON.parse(localStorage.getItem("firin_v2")||"{}"); } catch { return {}; } }
-function saveH(h) { localStorage.setItem("firin_v2", JSON.stringify(h)); }
+const CATEGORIES=["SİMİT","AÇMA","KARAKÖY","DİĞER","BOYOZ","ÇATAL"];
+const CAT_COLORS={"SİMİT":"#D4A574","AÇMA":"#E8C07A","KARAKÖY":"#C1886D","DİĞER":"#A8B5A2","BOYOZ":"#D4A090","ÇATAL":"#B8A9C9"};
+const DAYS_TR=["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];
+const MONTHS_TR=["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
 
-function App() {
-  const [curDate, setCurDate] = useState(today());
-  const [products, setProducts] = useState(() => { const h=loadH(); return h[today()] ? JSON.parse(JSON.stringify(h[today()])) : JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)); });
-  const [showAdd, setShowAdd] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newCat, setNewCat] = useState("SİMİT");
-  const [editingCell, setEditingCell] = useState(null);
-  const [editVal, setEditVal] = useState("");
-  const [filter, setFilter] = useState("TÜMÜ");
-  const [search, setSearch] = useState("");
-  const [tab, setTab] = useState("liste");
-  const [toast, setToast] = useState(null);
-  const [hf, setHf] = useState({ from:"", to:"", shop:"TÜMÜ", prod:"" });
-  const iRef = useRef(null);
-  const aRef = useRef(null);
+function fmtDate(ds){const d=new Date(ds+"T00:00:00");return `${d.getDate()} ${MONTHS_TR[d.getMonth()]} ${d.getFullYear()} ${DAYS_TR[d.getDay()]}`;}
+function todayStr(){return new Date().toISOString().slice(0,10);}
 
-  useEffect(() => { if(editingCell && iRef.current) iRef.current.focus(); }, [editingCell]);
-  useEffect(() => { if(showAdd && aRef.current) aRef.current.focus(); }, [showAdd]);
+function buildFirstDay(){
+  return TEMPLATE.map((p,i)=>{
+    const vals={};SHOPS.forEach(s=>{vals[s.id]=FIRST_VALS[s.id][i]||0;});
+    return{...p,vals};
+  });
+}
+function blankProducts(source){
+  return(source||TEMPLATE).map(p=>({...p,vals:Object.fromEntries(SHOPS.map(s=>[s.id,0]))}));
+}
 
-  const flash = (msg, c) => { setToast({msg,c}); setTimeout(()=>setToast(null),2500); };
+// ===== FIREBASE HELPERS =====
+function fbSave(dateKey,products){
+  return db.ref("days/"+dateKey).set(products);
+}
+function fbLoad(dateKey){
+  return db.ref("days/"+dateKey).once("value").then(snap=>snap.val());
+}
+function fbLoadAll(){
+  return db.ref("days").once("value").then(snap=>snap.val()||{});
+}
+function fbDelete(dateKey){
+  return db.ref("days/"+dateKey).remove();
+}
 
-  const changeDate = (nd) => {
-    setCurDate(nd);
-    const h = loadH();
-    if(h[nd]) setProducts(JSON.parse(JSON.stringify(h[nd])));
-    else setProducts(DEFAULT_PRODUCTS.map(p=>({...p, vals: Object.fromEntries(SHOPS.map(s=>[s.id,0]))})));
+function App(){
+  const [curDate,setCurDate]=useState(todayStr());
+  const [products,setProducts]=useState(buildFirstDay());
+  const [loading,setLoading]=useState(true);
+  const [syncing,setSyncing]=useState(false);
+  const [online,setOnline]=useState(true);
+  const [showAdd,setShowAdd]=useState(false);
+  const [newName,setNewName]=useState("");
+  const [newCat,setNewCat]=useState("SİMİT");
+  const [editingCell,setEditingCell]=useState(null);
+  const [editVal,setEditVal]=useState("");
+  const [filter,setFilter]=useState("TÜMÜ");
+  const [search,setSearch]=useState("");
+  const [tab,setTab]=useState("liste");
+  const [toast,setToast]=useState(null);
+  const [hf,setHf]=useState({from:"",to:"",shop:"TÜMÜ",prod:""});
+  const [allHistory,setAllHistory]=useState({});
+  const iRef=useRef(null);
+  const aRef=useRef(null);
+  const saveTimer=useRef(null);
+  const listenerRef=useRef(null);
+  const skipNextUpdate=useRef(false);
+
+  useEffect(()=>{if(editingCell&&iRef.current)iRef.current.focus();},[editingCell]);
+  useEffect(()=>{if(showAdd&&aRef.current)aRef.current.focus();},[showAdd]);
+
+  const flash=(msg,c)=>{setToast({msg,c});setTimeout(()=>setToast(null),2500);};
+
+  // ===== REALTIME LISTENER: diğer cihazlardan gelen değişiklikleri anında göster =====
+  const attachListener=(dateKey)=>{
+    if(listenerRef.current) listenerRef.current();
+    const ref=db.ref("days/"+dateKey);
+    const handler=ref.on("value",(snap)=>{
+      if(skipNextUpdate.current){skipNextUpdate.current=false;return;}
+      const data=snap.val();
+      if(data) setProducts(data);
+    });
+    listenerRef.current=()=>ref.off("value",handler);
   };
 
-  const save = () => { const h=loadH(); h[curDate]=JSON.parse(JSON.stringify(products)); saveH(h); flash(`✓ ${fmtDate(curDate)} kaydedildi!`,"#2E7D32"); };
+  // ===== INITIAL LOAD =====
+  useEffect(()=>{
+    const init=async()=>{
+      try{
+        const data=await fbLoad(todayStr());
+        if(data){setProducts(data);}
+        else{
+          // Bugün kayıt yok, en son kaydı bul
+          const all=await fbLoadAll();
+          const dates=Object.keys(all).sort();
+          if(dates.length>0){
+            const lastDate=dates[dates.length-1];
+            setProducts(JSON.parse(JSON.stringify(all[lastDate])));
+          } else {
+            setProducts(buildFirstDay());
+          }
+        }
+        setAllHistory(await fbLoadAll());
+        attachListener(todayStr());
+        setOnline(true);
+      }catch(e){
+        console.error("Firebase bağlantı hatası:",e);
+        setOnline(false);
+        flash("⚠ İnternet bağlantısı yok, çevrimdışı çalışıyor","#FF8F00");
+      }
+      setLoading(false);
+    };
+    init();
+    return()=>{if(listenerRef.current)listenerRef.current();};
+  },[]);
 
-  const delDay = (dk) => { if(!confirm(`${fmtDate(dk)} silinsin mi?`)) return; const h=loadH(); delete h[dk]; saveH(h); flash(`🗑 Silindi`,"#DC3545"); };
+  // ===== AUTO-SAVE TO FIREBASE =====
+  useEffect(()=>{
+    if(loading) return;
+    if(saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current=setTimeout(async()=>{
+      setSyncing(true);
+      try{
+        skipNextUpdate.current=true;
+        await fbSave(curDate,products);
+        // Update local history cache
+        setAllHistory(prev=>({...prev,[curDate]:products}));
+      }catch(e){
+        console.error("Kayıt hatası:",e);
+        flash("⚠ Kayıt başarısız, tekrar denenecek","#DC3545");
+      }
+      setSyncing(false);
+    },800);
+    return()=>clearTimeout(saveTimer.current);
+  },[products,curDate,loading]);
 
-  const updVal = useCallback((pid,sid,v) => { setProducts(pr=>pr.map(p=>p.id===pid?{...p,vals:{...p.vals,[sid]:Math.max(0,parseInt(v)||0)}}:p)); },[]);
-  const rmProd = useCallback((id) => { setProducts(pr=>pr.filter(p=>p.id!==id)); },[]);
-  const addProd = useCallback(() => {
-    if(!newName.trim()) return;
-    const ev={}; SHOPS.forEach(s=>ev[s.id]=0);
+  // ===== DATE CHANGE =====
+  const changeDate=async(nd)=>{
+    setLoading(true);
+    setCurDate(nd);
+    try{
+      const data=await fbLoad(nd);
+      if(data){setProducts(data);}
+      else{
+        const all=await fbLoadAll();
+        const dates=Object.keys(all).sort();
+        const prev=dates.filter(d=>d<=nd).pop()||dates[dates.length-1];
+        if(prev&&all[prev]) setProducts(JSON.parse(JSON.stringify(all[prev])));
+        else setProducts(blankProducts());
+      }
+      attachListener(nd);
+      setAllHistory(await fbLoadAll());
+    }catch(e){
+      flash("⚠ Veri yüklenemedi","#DC3545");
+    }
+    setLoading(false);
+  };
+
+  const delDay=async(dk)=>{
+    if(!confirm(`${fmtDate(dk)} silinsin mi?`))return;
+    try{
+      await fbDelete(dk);
+      setAllHistory(prev=>{const n={...prev};delete n[dk];return n;});
+      flash("🗑 Silindi","#DC3545");
+    }catch(e){flash("⚠ Silinemedi","#DC3545");}
+  };
+
+  const updVal=useCallback((pid,sid,v)=>{setProducts(pr=>pr.map(p=>p.id===pid?{...p,vals:{...p.vals,[sid]:Math.max(0,parseInt(v)||0)}}:p));},[]);
+  const rmProd=useCallback((id)=>{setProducts(pr=>pr.filter(p=>p.id!==id));},[]);
+  const addProd=useCallback(()=>{
+    if(!newName.trim())return;
+    const ev={};SHOPS.forEach(s=>ev[s.id]=0);
     setProducts(pr=>[...pr,{id:Date.now(),name:newName.trim().toUpperCase(),cat:newCat,vals:ev}]);
-    setNewName(""); setShowAdd(false);
+    setNewName("");setShowAdd(false);
   },[newName,newCat]);
 
-  const rTot = (p) => SHOPS.reduce((s,sh)=>s+(p.vals[sh.id]||0),0);
-  const fp = products.filter(p => (filter==="TÜMÜ"||p.cat===filter) && (!search||p.name.toLowerCase().includes(search.toLowerCase())));
-  const cTot = (sid) => fp.reduce((s,p)=>s+(p.vals[sid]||0),0);
-  const gTot = SHOPS.reduce((s,sh)=>s+cTot(sh.id),0);
+  const rTot=(p)=>SHOPS.reduce((s,sh)=>s+(p.vals[sh.id]||0),0);
+  const fp=products.filter(p=>(filter==="TÜMÜ"||p.cat===filter)&&(!search||p.name.toLowerCase().includes(search.toLowerCase())));
+  const cTot=(sid)=>fp.reduce((s,p)=>s+(p.vals[sid]||0),0);
+  const gTot=SHOPS.reduce((s,sh)=>s+cTot(sh.id),0);
 
-  const cellClick = (pid,sid,cv) => { setEditingCell(`${pid}-${sid}`); setEditVal(String(cv||0)); };
-  const cellBlur = (pid,sid) => { updVal(pid,sid,editVal); setEditingCell(null); };
-  const cellKey = (e,pid,sid) => { if(e.key==="Enter") cellBlur(pid,sid); if(e.key==="Escape") setEditingCell(null); };
-  const inc = (pid,sid,d) => { setProducts(pr=>pr.map(p=>p.id===pid?{...p,vals:{...p.vals,[sid]:Math.max(0,(p.vals[sid]||0)+d)}}:p)); };
+  const cellClick=(pid,sid,cv)=>{setEditingCell(`${pid}-${sid}`);setEditVal(String(cv||0));};
+  const cellBlur=(pid,sid)=>{updVal(pid,sid,editVal);setEditingCell(null);};
+  const cellKey=(e,pid,sid)=>{if(e.key==="Enter")cellBlur(pid,sid);if(e.key==="Escape")setEditingCell(null);};
+  const inc=(pid,sid,d)=>{setProducts(pr=>pr.map(p=>p.id===pid?{...p,vals:{...p.vals,[sid]:Math.max(0,(p.vals[sid]||0)+d)}}:p));};
 
-  const copyFrom = (sd) => { const h=loadH(); if(h[sd]){setProducts(JSON.parse(JSON.stringify(h[sd]))); flash(`📋 Kopyalandı`,"#6A1B9A");} };
+  const copyFrom=(sd)=>{
+    const src=allHistory[sd];
+    if(src){setProducts(JSON.parse(JSON.stringify(src)));flash("📋 Kopyalandı","#6A1B9A");}
+  };
+  const startFresh=()=>{
+    setProducts(prev=>prev.map(p=>({...p,vals:Object.fromEntries(SHOPS.map(s=>[s.id,0]))})));
+    flash("🔄 Sıfırlandı","#FF8F00");
+  };
 
-  // EXCEL: current day
-  const expDay = () => {
+  // EXCEL
+  const expDay=()=>{
     const hdr=["ÜRÜN ADI",...SHOPS.map(s=>s.name),"TOPLAM"];
     const rows=products.map(p=>[p.name,...SHOPS.map(s=>p.vals[s.id]||0),rTot(p)]);
     const tRow=["TOPLAM",...SHOPS.map(s=>products.reduce((a,p)=>a+(p.vals[s.id]||0),0)),products.reduce((a,p)=>a+rTot(p),0)];
     const ws=XLSX.utils.aoa_to_sheet([hdr,...rows,tRow]);
     ws['!cols']=[{wch:28},...SHOPS.map(()=>({wch:13})),{wch:10}];
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,ws,fmtDate(curDate).slice(0,31));
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,fmtDate(curDate).slice(0,31));
     XLSX.writeFile(wb,`Siparis_${curDate}.xlsx`);
     flash("📥 Excel indirildi!","#1565C0");
   };
-
-  // EXCEL: all history
-  const expAll = () => {
-    const h=loadH(); const dates=Object.keys(h).sort();
-    if(!dates.length){flash("⚠ Kayıt yok!","#FF8F00"); return;}
+  const expAll=()=>{
+    const dates=Object.keys(allHistory).sort();
+    if(!dates.length){flash("⚠ Kayıt yok!","#FF8F00");return;}
     const wb=XLSX.utils.book_new();
     dates.forEach(dk=>{
-      const pr=h[dk];
+      const pr=allHistory[dk];if(!pr)return;
       const hdr=["ÜRÜN ADI",...SHOPS.map(s=>s.name),"TOPLAM"];
       const rows=pr.map(p=>[p.name,...SHOPS.map(s=>p.vals[s.id]||0),SHOPS.reduce((a,s)=>a+(p.vals[s.id]||0),0)]);
       const tRow=["TOPLAM",...SHOPS.map(s=>pr.reduce((a,p)=>a+(p.vals[s.id]||0),0)),pr.reduce((a,p)=>a+SHOPS.reduce((b,s)=>b+(p.vals[s.id]||0),0),0)];
@@ -168,58 +273,71 @@ function App() {
       ws['!cols']=[{wch:28},...SHOPS.map(()=>({wch:13})),{wch:10}];
       XLSX.utils.book_append_sheet(wb,ws,dk.replace(/-/g,"."));
     });
-    // Summary
-    const allP=[...new Set(dates.flatMap(d=>h[d].map(p=>p.name)))];
+    const allP=[...new Set(dates.flatMap(d=>(allHistory[d]||[]).map(p=>p.name)))];
     const sH=["ÜRÜN",...dates.map(d=>{const x=fmtDate(d).split(" ");return x[0]+" "+x[1];})];
-    const sR=allP.map(pn=>[pn,...dates.map(d=>{const f=h[d].find(p=>p.name===pn);return f?SHOPS.reduce((a,s)=>a+(f.vals[s.id]||0),0):0;})]);
+    const sR=allP.map(pn=>[pn,...dates.map(d=>{const f=(allHistory[d]||[]).find(p=>p.name===pn);return f?SHOPS.reduce((a,s)=>a+(f.vals[s.id]||0),0):0;})]);
     const sWs=XLSX.utils.aoa_to_sheet([sH,...sR]);
     sWs['!cols']=[{wch:28},...dates.map(()=>({wch:14}))];
     XLSX.utils.book_append_sheet(wb,sWs,"ÖZET");
-    XLSX.writeFile(wb,`Siparis_Gecmis_${today()}.xlsx`);
+    XLSX.writeFile(wb,`Siparis_Gecmis_${todayStr()}.xlsx`);
     flash("📥 Tüm geçmiş aktarıldı!","#1565C0");
   };
 
-  const hist=loadH(); const hDates=Object.keys(hist).sort().reverse();
+  const hDates=Object.keys(allHistory).sort().reverse();
 
   const getHRows=()=>{
     let r=[];
     hDates.forEach(dk=>{
-      if(hf.from&&dk<hf.from) return; if(hf.to&&dk>hf.to) return;
-      hist[dk].forEach(p=>{
-        if(hf.prod&&!p.name.toLowerCase().includes(hf.prod.toLowerCase())) return;
+      if(hf.from&&dk<hf.from)return;if(hf.to&&dk>hf.to)return;
+      const prods=allHistory[dk];if(!prods)return;
+      prods.forEach(p=>{
+        if(hf.prod&&!p.name.toLowerCase().includes(hf.prod.toLowerCase()))return;
         SHOPS.forEach(s=>{
-          if(hf.shop!=="TÜMÜ"&&s.id!==hf.shop) return;
+          if(hf.shop!=="TÜMÜ"&&s.id!==hf.shop)return;
           const v=p.vals[s.id]||0;
-          if(v>0) r.push({date:dk,dateTR:fmtDate(dk),product:p.name,cat:p.cat,shop:s.name,qty:v});
+          if(v>0)r.push({date:dk,dateTR:fmtDate(dk),product:p.name,cat:p.cat,shop:s.name,qty:v});
         });
       });
     });
     return r;
   };
 
-  const B=(bg)=>({padding:"9px 16px",borderRadius:"10px",border:"none",cursor:"pointer",background:bg,color:"#FFF",fontSize:"13px",fontWeight:700,boxShadow:"0 2px 8px rgba(0,0,0,0.15)",whiteSpace:"nowrap"});
+  const B=(bg)=>({padding:"9px 16px",borderRadius:"10px",border:"none",cursor:"pointer",background:bg,color:"#FFF",fontSize:"13px",fontWeight:700,boxShadow:"0 2px 8px rgba(0,0,0,.15)",whiteSpace:"nowrap"});
 
-  return (
+  if(loading) return(
+    <div className="loading-overlay">
+      <div className="spinner"></div>
+      <p style={{marginTop:"16px",color:"#8B4513",fontWeight:700,fontSize:"16px"}}>Veriler yükleniyor...</p>
+      <p style={{marginTop:"6px",color:"#C0A080",fontSize:"12px"}}>Firebase'den senkronize ediliyor</p>
+    </div>
+  );
+
+  return(
     <div style={{padding:"16px",minHeight:"100vh"}}>
       {toast&&<div className="toast" style={{background:toast.c}}>{toast.msg}</div>}
 
       {/* HEADER */}
-      <div style={{background:"linear-gradient(135deg,#8B4513 0%,#A0522D 50%,#CD853F 100%)",borderRadius:"16px",padding:"20px 24px",marginBottom:"16px",boxShadow:"0 8px 32px rgba(139,69,19,0.3)",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,opacity:0.06,backgroundImage:"repeating-linear-gradient(45deg,transparent,transparent 20px,#fff 20px,#fff 22px)"}}/>
+      <div style={{background:"linear-gradient(135deg,#8B4513 0%,#A0522D 50%,#CD853F 100%)",borderRadius:"16px",padding:"20px 24px",marginBottom:"16px",boxShadow:"0 8px 32px rgba(139,69,19,.3)",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,opacity:.06,backgroundImage:"repeating-linear-gradient(45deg,transparent,transparent 20px,#fff 20px,#fff 22px)"}}/>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",position:"relative",flexWrap:"wrap",gap:"12px"}}>
           <div>
-            <h1 style={{margin:0,fontSize:"22px",fontWeight:800,color:"#FFF8F0"}}>🥯 Sipariş Dağıtım Listesi</h1>
+            <h1 style={{margin:0,fontSize:"22px",fontWeight:800,color:"#FFF8F0"}}>🥯 Sipariş Dağıtım Takip</h1>
             <div style={{display:"flex",alignItems:"center",gap:"10px",marginTop:"8px",flexWrap:"wrap"}}>
-              <input type="date" value={curDate} onChange={e=>changeDate(e.target.value)} style={{padding:"7px 12px",borderRadius:"8px",border:"2px solid rgba(255,255,255,0.3)",background:"rgba(255,255,255,0.15)",color:"#FFF",fontSize:"14px",fontWeight:700,outline:"none"}}/>
+              <input type="date" value={curDate} onChange={e=>changeDate(e.target.value)} style={{padding:"7px 12px",borderRadius:"8px",border:"2px solid rgba(255,255,255,.3)",background:"rgba(255,255,255,.15)",color:"#FFF",fontSize:"14px",fontWeight:700,outline:"none"}}/>
               <span style={{color:"#F5DEB3",fontSize:"14px",fontWeight:600}}>{fmtDate(curDate)}</span>
+            </div>
+            <div style={{marginTop:"6px",display:"flex",alignItems:"center",gap:"6px"}}>
+              <span className="sync-dot" style={{background:syncing?"#FFD700":online?"#4CAF50":"#F44336"}}></span>
+              <span style={{color:"rgba(255,255,255,.7)",fontSize:"11px",fontWeight:600}}>
+                {syncing?"Senkronize ediliyor...":online?"☁️ Firebase bağlı — tüm cihazlarda senkron":"⚠ Çevrimdışı"}
+              </span>
             </div>
           </div>
           <div style={{display:"flex",gap:"8px",alignItems:"center",flexWrap:"wrap"}}>
-            <button onClick={save} style={B("#2E7D32")}>💾 Kaydet</button>
-            <button onClick={expDay} style={B("#1565C0")}>📥 Excel'e Aktar</button>
-            <button onClick={expAll} style={B("#6A1B9A")}>📊 Tüm Geçmişi Excel</button>
-            <button className="no-print" onClick={()=>window.print()} style={B("rgba(255,255,255,0.2)")}>🖨</button>
-            <div style={{background:"rgba(255,255,255,0.2)",borderRadius:"12px",padding:"6px 14px",textAlign:"right"}}>
+            <button onClick={expDay} style={B("#1565C0")}>📥 Excel</button>
+            <button onClick={expAll} style={B("#6A1B9A")}>📊 Tümü</button>
+            <button className="no-print" onClick={()=>window.print()} style={B("rgba(255,255,255,.2)")}>🖨</button>
+            <div style={{background:"rgba(255,255,255,.2)",borderRadius:"12px",padding:"6px 14px",textAlign:"right"}}>
               <div style={{fontSize:"10px",color:"#F5DEB3",fontWeight:600}}>TOPLAM</div>
               <div style={{fontSize:"24px",fontWeight:800,color:"#FFF"}}>{products.reduce((s,p)=>s+rTot(p),0)}</div>
             </div>
@@ -229,19 +347,20 @@ function App() {
 
       {/* TABS */}
       <div className="no-print" style={{display:"flex",gap:"4px"}}>
-        {[["liste","📋 Günlük Liste"],["gecmis","📅 Geçmiş Kayıtlar"]].map(([k,l])=>(
-          <button key={k} onClick={()=>setTab(k)} style={{padding:"8px 20px",border:"none",cursor:"pointer",fontSize:"13px",fontWeight:700,borderRadius:"10px 10px 0 0",background:tab===k?"#FFF":"#E8D5C0",color:tab===k?"#8B4513":"#A08060",borderBottom:tab===k?"3px solid #8B4513":"none"}}>{l}</button>
+        {[["liste","📋 Günlük Liste"],["gecmis","📅 Geçmiş"]].map(([k,l])=>(
+          <button key={k} onClick={()=>{setTab(k);if(k==="gecmis")fbLoadAll().then(setAllHistory);}} style={{padding:"8px 20px",border:"none",cursor:"pointer",fontSize:"13px",fontWeight:700,borderRadius:"10px 10px 0 0",background:tab===k?"#FFF":"#E8D5C0",color:tab===k?"#8B4513":"#A08060",borderBottom:tab===k?"3px solid #8B4513":"none"}}>{l}</button>
         ))}
       </div>
 
-      {/* DAILY LIST TAB */}
+      {/* DAILY LIST */}
       {tab==="liste"&&(<div>
-        <div className="no-print" style={{display:"flex",gap:"6px",marginBottom:"10px",flexWrap:"wrap",alignItems:"center",background:"#FFF",padding:"10px",borderRadius:"0 10px 10px 10px",boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}}>
+        <div className="no-print" style={{display:"flex",gap:"6px",marginBottom:"10px",flexWrap:"wrap",alignItems:"center",background:"#FFF",padding:"10px",borderRadius:"0 10px 10px 10px",boxShadow:"0 2px 8px rgba(0,0,0,.05)"}}>
           <div style={{display:"flex",gap:"3px",flexWrap:"wrap",flex:1}}>
             {["TÜMÜ",...CATEGORIES].map(c=>(<button key={c} onClick={()=>setFilter(c)} style={{padding:"5px 11px",borderRadius:"16px",border:"none",cursor:"pointer",fontSize:"11px",fontWeight:700,background:filter===c?(c==="TÜMÜ"?"#8B4513":CAT_COLORS[c]):"#F5F0EB",color:filter===c?"#FFF":"#8B6914"}}>{c}</button>))}
           </div>
           <input type="text" placeholder="🔍 Ara..." value={search} onChange={e=>setSearch(e.target.value)} style={{padding:"6px 10px",borderRadius:"8px",border:"2px solid #E8D5C0",fontSize:"12px",width:"120px",outline:"none"}}/>
-          <button onClick={()=>setShowAdd(!showAdd)} style={B(showAdd?"#DC3545":"#2E7D32")}>{showAdd?"✕":"＋ Yeni Ürün"}</button>
+          <button onClick={()=>setShowAdd(!showAdd)} style={B(showAdd?"#DC3545":"#2E7D32")}>{showAdd?"✕":"＋ Yeni"}</button>
+          <button onClick={startFresh} style={B("#FF8F00")}>🔄 Sıfırla</button>
           {hDates.length>0&&(<select onChange={e=>e.target.value&&copyFrom(e.target.value)} defaultValue="" style={{padding:"6px 8px",borderRadius:"8px",border:"2px solid #E8D5C0",fontSize:"11px",cursor:"pointer",color:"#6A1B9A",fontWeight:600}}>
             <option value="">📋 Kopyala...</option>
             {hDates.map(d=><option key={d} value={d}>{fmtDate(d)}</option>)}
@@ -254,7 +373,7 @@ function App() {
           <button onClick={addProd} style={B("#2E7D32")}>✓ Ekle</button>
         </div>)}
 
-        <div style={{overflowX:"auto",borderRadius:"0 0 12px 12px",boxShadow:"0 4px 20px rgba(0,0,0,0.08)",background:"#FFF"}}>
+        <div style={{overflowX:"auto",borderRadius:"0 0 12px 12px",boxShadow:"0 4px 20px rgba(0,0,0,.08)",background:"#FFF"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:"12px"}}>
             <thead><tr style={{background:"linear-gradient(135deg,#5D3A1A,#8B5E3C)"}}>
               <th style={{padding:"9px 10px",color:"#FFF8F0",fontWeight:700,textAlign:"left",position:"sticky",left:0,background:"#5D3A1A",zIndex:2,minWidth:"160px",fontSize:"11px"}}>ÜRÜN ADI</th>
@@ -263,24 +382,24 @@ function App() {
               <th className="no-print" style={{width:"32px"}}></th>
             </tr></thead>
             <tbody>{fp.map((p,idx)=>{
-              const tot=rTot(p); const prev=idx>0?fp[idx-1].cat:null; const catH=p.cat!==prev;
-              return (<React.Fragment key={p.id}>
+              const tot=rTot(p);const prev=idx>0?fp[idx-1].cat:null;const catH=p.cat!==prev;
+              return(<React.Fragment key={p.id}>
                 {catH&&<tr><td colSpan={SHOPS.length+3} style={{padding:"5px 10px",background:CAT_COLORS[p.cat]+"30",fontWeight:800,fontSize:"10px",color:"#5D3A1A",letterSpacing:"1px",borderTop:"2px solid "+CAT_COLORS[p.cat]}}><span style={{display:"inline-block",width:"7px",height:"7px",borderRadius:"50%",background:CAT_COLORS[p.cat],marginRight:"6px"}}/>{p.cat}</td></tr>}
                 <tr style={{background:idx%2===0?"#FEFCF9":"#FFF"}} onMouseEnter={e=>e.currentTarget.style.background="#FFF5E6"} onMouseLeave={e=>e.currentTarget.style.background=idx%2===0?"#FEFCF9":"#FFF"}>
                   <td style={{padding:"4px 10px",fontWeight:600,color:"#4A3520",position:"sticky",left:0,background:"inherit",zIndex:1,borderRight:"2px solid #F0E6D6",fontSize:"11px"}}>{p.name}</td>
                   {SHOPS.map(s=>{
-                    const ck=`${p.id}-${s.id}`; const v=p.vals[s.id]||0; const ed=editingCell===ck;
+                    const ck=`${p.id}-${s.id}`;const v=p.vals[s.id]||0;const ed=editingCell===ck;
                     return <td key={s.id} style={{padding:"1px 2px",textAlign:"center",borderLeft:"1px solid #F5EDE3"}}>
                       {ed?<input ref={iRef} type="number" min="0" value={editVal} onChange={e=>setEditVal(e.target.value)} onBlur={()=>cellBlur(p.id,s.id)} onKeyDown={e=>cellKey(e,p.id,s.id)} style={{width:"44px",padding:"3px",textAlign:"center",border:"2px solid #8B4513",borderRadius:"6px",fontSize:"12px",fontWeight:700,outline:"none",background:"#FFF8F0"}}/>
                       :<div style={{display:"flex",alignItems:"center",justifyContent:"center"}}>
-                        <button className="no-print" onClick={()=>inc(p.id,s.id,-1)} style={{width:"15px",height:"20px",border:"none",background:"transparent",cursor:"pointer",color:"#C0392B",fontSize:"12px",fontWeight:800,opacity:v>0?0.5:0.12}}>−</button>
+                        <button className="no-print" onClick={()=>inc(p.id,s.id,-1)} style={{width:"15px",height:"20px",border:"none",background:"transparent",cursor:"pointer",color:"#C0392B",fontSize:"12px",fontWeight:800,opacity:v>0?.5:.12}}>−</button>
                         <span onClick={()=>cellClick(p.id,s.id,v)} style={{cursor:"pointer",minWidth:"22px",padding:"2px",fontWeight:v>0?700:400,color:v>0?"#2C1810":"#CCC",fontSize:"12px"}}>{v>0?v:"·"}</span>
-                        <button className="no-print" onClick={()=>inc(p.id,s.id,1)} style={{width:"15px",height:"20px",border:"none",background:"transparent",cursor:"pointer",color:"#27AE60",fontSize:"12px",fontWeight:800,opacity:0.5}}>+</button>
+                        <button className="no-print" onClick={()=>inc(p.id,s.id,1)} style={{width:"15px",height:"20px",border:"none",background:"transparent",cursor:"pointer",color:"#27AE60",fontSize:"12px",fontWeight:800,opacity:.5}}>+</button>
                       </div>}
                     </td>;
                   })}
-                  <td style={{padding:"4px 6px",textAlign:"center",fontWeight:800,color:"#8B4513",fontSize:"13px",background:"rgba(255,215,0,0.1)",borderLeft:"2px solid #E8D5C0"}}>{tot}</td>
-                  <td className="no-print" style={{padding:"2px",textAlign:"center"}}><button onClick={()=>rmProd(p.id)} style={{width:"20px",height:"20px",border:"none",background:"transparent",cursor:"pointer",color:"#E74C3C",fontSize:"12px",opacity:0.25}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.25}>🗑</button></td>
+                  <td style={{padding:"4px 6px",textAlign:"center",fontWeight:800,color:"#8B4513",fontSize:"13px",background:"rgba(255,215,0,.1)",borderLeft:"2px solid #E8D5C0"}}>{tot}</td>
+                  <td className="no-print" style={{padding:"2px",textAlign:"center"}}><button onClick={()=>rmProd(p.id)} style={{width:"20px",height:"20px",border:"none",background:"transparent",cursor:"pointer",color:"#E74C3C",fontSize:"12px",opacity:.25}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.25}>🗑</button></td>
                 </tr>
               </React.Fragment>);
             })}</tbody>
@@ -295,7 +414,7 @@ function App() {
 
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:"8px",marginTop:"12px"}}>
           {CATEGORIES.map(c=>{const cp=products.filter(p=>p.cat===c);const ct=cp.reduce((s,p)=>s+rTot(p),0);
-            return <div key={c} style={{background:"#FFF",borderRadius:"10px",padding:"10px",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",borderLeft:`4px solid ${CAT_COLORS[c]}`}}>
+            return <div key={c} style={{background:"#FFF",borderRadius:"10px",padding:"10px",boxShadow:"0 2px 8px rgba(0,0,0,.04)",borderLeft:`4px solid ${CAT_COLORS[c]}`}}>
               <div style={{fontSize:"10px",fontWeight:700,color:"#999"}}>{c}</div>
               <div style={{fontSize:"20px",fontWeight:800,color:"#4A3520"}}>{ct}</div>
               <div style={{fontSize:"10px",color:"#AAA"}}>{cp.length} ürün</div>
@@ -304,8 +423,8 @@ function App() {
         </div>
       </div>)}
 
-      {/* HISTORY TAB */}
-      {tab==="gecmis"&&(<div style={{background:"#FFF",borderRadius:"0 12px 12px 12px",padding:"16px",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
+      {/* HISTORY */}
+      {tab==="gecmis"&&(<div style={{background:"#FFF",borderRadius:"0 12px 12px 12px",padding:"16px",boxShadow:"0 2px 12px rgba(0,0,0,.06)"}}>
         <div style={{display:"flex",gap:"8px",flexWrap:"wrap",alignItems:"center",marginBottom:"14px",paddingBottom:"14px",borderBottom:"2px solid #F0E6D6"}}>
           <span style={{fontSize:"12px",fontWeight:700,color:"#8B4513"}}>📅</span>
           <input type="date" value={hf.from} onChange={e=>setHf(f=>({...f,from:e.target.value}))} style={{padding:"5px 8px",borderRadius:"8px",border:"2px solid #E8D5C0",fontSize:"12px"}}/>
@@ -318,11 +437,11 @@ function App() {
           <input type="text" placeholder="Ürün ara..." value={hf.prod} onChange={e=>setHf(f=>({...f,prod:e.target.value}))} style={{padding:"5px 8px",borderRadius:"8px",border:"2px solid #E8D5C0",fontSize:"12px",width:"120px"}}/>
         </div>
 
-        {hDates.length===0?(<div style={{textAlign:"center",padding:"40px",color:"#CCC"}}><div style={{fontSize:"48px",marginBottom:"12px"}}>📭</div><div style={{fontSize:"15px",fontWeight:600}}>Henüz kayıt yok</div><div style={{fontSize:"12px",marginTop:"6px"}}>Günlük listede "Kaydet" ile kayıt oluşturun</div></div>)
+        {hDates.length===0?(<div style={{textAlign:"center",padding:"40px",color:"#CCC"}}><div style={{fontSize:"48px",marginBottom:"12px"}}>📭</div><div style={{fontSize:"15px",fontWeight:600}}>Henüz kayıt yok</div></div>)
         :(<>
           <h3 style={{fontSize:"13px",color:"#5D3A1A",marginBottom:"10px"}}>Kayıtlı Günler ({hDates.length})</h3>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:"8px",marginBottom:"16px"}}>
-            {hDates.map(d=>{const pr=hist[d];const dt=pr.reduce((s,p)=>s+SHOPS.reduce((ss,sh)=>ss+(p.vals[sh.id]||0),0),0);
+            {hDates.map(d=>{const pr=allHistory[d];if(!pr||!Array.isArray(pr))return null;const dt=pr.reduce((s,p)=>s+SHOPS.reduce((ss,sh)=>ss+(p.vals[sh.id]||0),0),0);
               return <div key={d} style={{background:"#FEFCF9",borderRadius:"10px",padding:"10px 12px",border:"1px solid #F0E6D6",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div><div style={{fontSize:"12px",fontWeight:700,color:"#4A3520"}}>{fmtDate(d)}</div><div style={{fontSize:"10px",color:"#AAA",marginTop:"2px"}}>{pr.length} ürün · {dt} adet</div></div>
                 <div style={{display:"flex",gap:"4px"}}>
@@ -353,18 +472,18 @@ function App() {
                 </tr>
               ))}</tbody>
             </table>
-            {getHRows().length>300&&<div style={{padding:"8px",textAlign:"center",color:"#999",fontSize:"11px"}}>İlk 300 kayıt. Tamamı için Excel'e aktarın.</div>}
+            {getHRows().length>300&&<div style={{padding:"8px",textAlign:"center",color:"#999",fontSize:"11px"}}>İlk 300 kayıt gösterildi.</div>}
             {getHRows().length===0&&<div style={{padding:"24px",textAlign:"center",color:"#CCC",fontSize:"12px"}}>Filtreye uygun kayıt yok</div>}
           </div>
         </>)}
       </div>)}
 
-      <p style={{textAlign:"center",color:"#C0A080",fontSize:"10px",marginTop:"12px"}}>💡 Veriler tarayıcınızda saklanır · "Kaydet" ile günlük listeyi saklayın · "Geçmiş Kayıtlar"dan filtreleyin</p>
+      <p style={{textAlign:"center",color:"#C0A080",fontSize:"10px",marginTop:"12px"}}>☁️ Veriler Firebase'de saklanıyor — tüm cihazlarınızda otomatik senkronize</p>
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
 </html>
