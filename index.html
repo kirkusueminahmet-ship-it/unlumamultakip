@@ -12,15 +12,15 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
 firebase.initializeApp({
-  apiKey: "AIzaSyAXGKVX0C5wcO4V1t0XiGvSH5JOzAxDfvE",
-  authDomain: "unlumamultakip.firebaseapp.com",
-  databaseURL: "https://unlumamultakip-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "unlumamultakip",
-  storageBucket: "unlumamultakip.firebasestorage.app",
-  messagingSenderId: "627772395906",
-  appId: "1:627772395906:web:29e684c7ecd0eeaa587f9b"
+  apiKey:"AIzaSyAXGKVX0C5wcO4V1t0XiGvSH5JOzAxDfvE",
+  authDomain:"unlumamultakip.firebaseapp.com",
+  databaseURL:"https://unlumamultakip-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:"unlumamultakip",
+  storageBucket:"unlumamultakip.firebasestorage.app",
+  messagingSenderId:"627772395906",
+  appId:"1:627772395906:web:29e684c7ecd0eeaa587f9b"
 });
-const db = firebase.database();
+const db=firebase.database();
 </script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -31,7 +31,6 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:linear-g
 @keyframes fadeOut{from{opacity:1}to{opacity:0}}
 .sync-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.history-row:hover{background:#FFF5E6!important}
 .loading-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(253,246,236,.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000}
 .spinner{width:48px;height:48px;border:4px solid #E8D5C0;border-top-color:#8B4513;border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -76,27 +75,80 @@ function fmtDate(ds){const d=new Date(ds+"T00:00:00");return `${d.getDate()} ${M
 function todayStr(){return new Date().toISOString().slice(0,10);}
 
 function buildFirstDay(){
-  return TEMPLATE.map((p,i)=>{
-    const vals={};SHOPS.forEach(s=>{vals[s.id]=FIRST_VALS[s.id][i]||0;});
-    return{...p,vals};
-  });
+  return TEMPLATE.map((p,i)=>{const vals={};SHOPS.forEach(s=>{vals[s.id]=FIRST_VALS[s.id][i]||0;});return{...p,vals};});
 }
 function blankProducts(source){
   return(source||TEMPLATE).map(p=>({...p,vals:Object.fromEntries(SHOPS.map(s=>[s.id,0]))}));
 }
 
-// ===== FIREBASE HELPERS =====
-function fbSave(dateKey,products){
-  return db.ref("days/"+dateKey).set(products);
-}
-function fbLoad(dateKey){
-  return db.ref("days/"+dateKey).once("value").then(snap=>snap.val());
-}
-function fbLoadAll(){
-  return db.ref("days").once("value").then(snap=>snap.val()||{});
-}
-function fbDelete(dateKey){
-  return db.ref("days/"+dateKey).remove();
+function fbSave(dk,pr){return db.ref("days/"+dk).set(pr);}
+function fbLoad(dk){return db.ref("days/"+dk).once("value").then(s=>s.val());}
+function fbLoadAll(){return db.ref("days").once("value").then(s=>s.val()||{});}
+function fbDelete(dk){return db.ref("days/"+dk).remove();}
+
+// ===== STYLED EXCEL EXPORT =====
+function styledExport(products, dateLabel, fileName){
+  const wb=XLSX.utils.book_new();
+  const colCount=SHOPS.length+2;
+  const border={top:{style:"thin",color:{rgb:"8B4513"}},bottom:{style:"thin",color:{rgb:"8B4513"}},left:{style:"thin",color:{rgb:"8B4513"}},right:{style:"thin",color:{rgb:"8B4513"}}};
+  const headerStyle={font:{bold:true,color:{rgb:"FFFFFF"},sz:11},fill:{fgColor:{rgb:"5D3A1A"}},alignment:{horizontal:"center",vertical:"center"},border};
+  const nameStyle={font:{bold:true,color:{rgb:"CC0000"},sz:11},alignment:{horizontal:"left",vertical:"center"},border};
+  const numStyle={alignment:{horizontal:"center",vertical:"center"},border};
+  const totalRowStyle={font:{bold:true,color:{rgb:"FFFFFF"},sz:11},fill:{fgColor:{rgb:"8B4513"}},alignment:{horizontal:"center",vertical:"center"},border};
+  const totalColStyle={font:{bold:true,color:{rgb:"8B4513"},sz:11},fill:{fgColor:{rgb:"FFF8DC"}},alignment:{horizontal:"center",vertical:"center"},border};
+
+  // Title row
+  const titleRow=[dateLabel,...SHOPS.map(()=>""),""];
+  // Header row
+  const hdr=["ÜRÜN ADI",...SHOPS.map(s=>s.name),"TOPLAM"];
+  // Data rows
+  const rows=products.map(p=>{
+    const tot=SHOPS.reduce((s,sh)=>s+(p.vals[sh.id]||0),0);
+    return[p.name,...SHOPS.map(s=>{const v=p.vals[s.id]||0;return v>0?v:"";}),tot>0?tot:""];
+  });
+  // Totals row
+  const totals=["TOPLAM",...SHOPS.map(s=>{const t=products.reduce((a,p)=>a+(p.vals[s.id]||0),0);return t>0?t:"";}),products.reduce((a,p)=>a+SHOPS.reduce((b,s)=>b+(p.vals[s.id]||0),0),0)];
+
+  const data=[titleRow,hdr,...rows,totals];
+  const ws=XLSX.utils.aoa_to_sheet(data);
+
+  // Merge title row
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:colCount-1}}];
+
+  // Column widths
+  ws['!cols']=[{wch:28},...SHOPS.map(()=>({wch:13})),{wch:10}];
+  // Row heights
+  ws['!rows']=[{hpt:30},{hpt:24},...products.map(()=>({hpt:20})),{hpt:24}];
+
+  // Apply styles
+  const range=XLSX.utils.decode_range(ws['!ref']);
+  for(let R=range.s.r;R<=range.e.r;R++){
+    for(let C=range.s.c;C<=range.e.c;C++){
+      const addr=XLSX.utils.encode_cell({r:R,c:C});
+      if(!ws[addr])ws[addr]={v:"",t:"s"};
+      if(R===0){
+        // Title row
+        ws[addr].s={font:{bold:true,color:{rgb:"8B4513"},sz:14},alignment:{horizontal:"center",vertical:"center"},border};
+      } else if(R===1){
+        // Header row
+        ws[addr].s=headerStyle;
+      } else if(R===range.e.r){
+        // Totals row
+        ws[addr].s=totalRowStyle;
+      } else if(C===0){
+        // Product name column — RED
+        ws[addr].s=nameStyle;
+      } else if(C===colCount-1){
+        // Total column
+        ws[addr].s=totalColStyle;
+      } else {
+        ws[addr].s=numStyle;
+      }
+    }
+  }
+
+  XLSX.utils.book_append_sheet(wb,ws,dateLabel.slice(0,31));
+  XLSX.writeFile(wb,fileName);
 }
 
 function App(){
@@ -116,119 +168,67 @@ function App(){
   const [toast,setToast]=useState(null);
   const [hf,setHf]=useState({from:"",to:"",shop:"TÜMÜ",prod:""});
   const [allHistory,setAllHistory]=useState({});
+  const [expandedDay,setExpandedDay]=useState(null);
   const iRef=useRef(null);
   const aRef=useRef(null);
   const saveTimer=useRef(null);
   const listenerRef=useRef(null);
-  const skipNextUpdate=useRef(false);
+  const skipNext=useRef(false);
 
   useEffect(()=>{if(editingCell&&iRef.current)iRef.current.focus();},[editingCell]);
   useEffect(()=>{if(showAdd&&aRef.current)aRef.current.focus();},[showAdd]);
 
   const flash=(msg,c)=>{setToast({msg,c});setTimeout(()=>setToast(null),2500);};
 
-  // ===== REALTIME LISTENER: diğer cihazlardan gelen değişiklikleri anında göster =====
-  const attachListener=(dateKey)=>{
-    if(listenerRef.current) listenerRef.current();
-    const ref=db.ref("days/"+dateKey);
-    const handler=ref.on("value",(snap)=>{
-      if(skipNextUpdate.current){skipNextUpdate.current=false;return;}
-      const data=snap.val();
-      if(data) setProducts(data);
-    });
-    listenerRef.current=()=>ref.off("value",handler);
+  const attachListener=(dk)=>{
+    if(listenerRef.current)listenerRef.current();
+    const ref=db.ref("days/"+dk);
+    const h=ref.on("value",(snap)=>{if(skipNext.current){skipNext.current=false;return;}const d=snap.val();if(d)setProducts(d);});
+    listenerRef.current=()=>ref.off("value",h);
   };
 
-  // ===== INITIAL LOAD =====
   useEffect(()=>{
-    const init=async()=>{
+    (async()=>{
       try{
         const data=await fbLoad(todayStr());
-        if(data){setProducts(data);}
-        else{
-          // Bugün kayıt yok, en son kaydı bul
-          const all=await fbLoadAll();
-          const dates=Object.keys(all).sort();
-          if(dates.length>0){
-            const lastDate=dates[dates.length-1];
-            setProducts(JSON.parse(JSON.stringify(all[lastDate])));
-          } else {
-            setProducts(buildFirstDay());
-          }
-        }
+        if(data)setProducts(data);
+        else{const all=await fbLoadAll();const ds=Object.keys(all).sort();if(ds.length>0)setProducts(JSON.parse(JSON.stringify(all[ds[ds.length-1]])));else setProducts(buildFirstDay());}
         setAllHistory(await fbLoadAll());
-        attachListener(todayStr());
-        setOnline(true);
-      }catch(e){
-        console.error("Firebase bağlantı hatası:",e);
-        setOnline(false);
-        flash("⚠ İnternet bağlantısı yok, çevrimdışı çalışıyor","#FF8F00");
-      }
+        attachListener(todayStr());setOnline(true);
+      }catch(e){setOnline(false);flash("⚠ Bağlantı yok, çevrimdışı","#FF8F00");}
       setLoading(false);
-    };
-    init();
+    })();
     return()=>{if(listenerRef.current)listenerRef.current();};
   },[]);
 
-  // ===== AUTO-SAVE TO FIREBASE =====
   useEffect(()=>{
-    if(loading) return;
-    if(saveTimer.current) clearTimeout(saveTimer.current);
+    if(loading)return;
+    if(saveTimer.current)clearTimeout(saveTimer.current);
     saveTimer.current=setTimeout(async()=>{
       setSyncing(true);
-      try{
-        skipNextUpdate.current=true;
-        await fbSave(curDate,products);
-        // Update local history cache
-        setAllHistory(prev=>({...prev,[curDate]:products}));
-      }catch(e){
-        console.error("Kayıt hatası:",e);
-        flash("⚠ Kayıt başarısız, tekrar denenecek","#DC3545");
-      }
+      try{skipNext.current=true;await fbSave(curDate,products);setAllHistory(prev=>({...prev,[curDate]:products}));}
+      catch(e){flash("⚠ Kayıt başarısız","#DC3545");}
       setSyncing(false);
     },800);
     return()=>clearTimeout(saveTimer.current);
   },[products,curDate,loading]);
 
-  // ===== DATE CHANGE =====
   const changeDate=async(nd)=>{
-    setLoading(true);
-    setCurDate(nd);
+    setLoading(true);setCurDate(nd);
     try{
       const data=await fbLoad(nd);
-      if(data){setProducts(data);}
-      else{
-        const all=await fbLoadAll();
-        const dates=Object.keys(all).sort();
-        const prev=dates.filter(d=>d<=nd).pop()||dates[dates.length-1];
-        if(prev&&all[prev]) setProducts(JSON.parse(JSON.stringify(all[prev])));
-        else setProducts(blankProducts());
-      }
-      attachListener(nd);
-      setAllHistory(await fbLoadAll());
-    }catch(e){
-      flash("⚠ Veri yüklenemedi","#DC3545");
-    }
+      if(data)setProducts(data);
+      else{const all=await fbLoadAll();const ds=Object.keys(all).sort();const prev=ds.filter(d=>d<=nd).pop()||ds[ds.length-1];if(prev&&all[prev])setProducts(JSON.parse(JSON.stringify(all[prev])));else setProducts(blankProducts());}
+      attachListener(nd);setAllHistory(await fbLoadAll());
+    }catch(e){flash("⚠ Yüklenemedi","#DC3545");}
     setLoading(false);
   };
 
-  const delDay=async(dk)=>{
-    if(!confirm(`${fmtDate(dk)} silinsin mi?`))return;
-    try{
-      await fbDelete(dk);
-      setAllHistory(prev=>{const n={...prev};delete n[dk];return n;});
-      flash("🗑 Silindi","#DC3545");
-    }catch(e){flash("⚠ Silinemedi","#DC3545");}
-  };
+  const delDay=async(dk)=>{if(!confirm(`${fmtDate(dk)} silinsin mi?`))return;try{await fbDelete(dk);setAllHistory(prev=>{const n={...prev};delete n[dk];return n;});flash("🗑 Silindi","#DC3545");}catch(e){flash("⚠ Silinemedi","#DC3545");}};
 
   const updVal=useCallback((pid,sid,v)=>{setProducts(pr=>pr.map(p=>p.id===pid?{...p,vals:{...p.vals,[sid]:Math.max(0,parseInt(v)||0)}}:p));},[]);
   const rmProd=useCallback((id)=>{setProducts(pr=>pr.filter(p=>p.id!==id));},[]);
-  const addProd=useCallback(()=>{
-    if(!newName.trim())return;
-    const ev={};SHOPS.forEach(s=>ev[s.id]=0);
-    setProducts(pr=>[...pr,{id:Date.now(),name:newName.trim().toUpperCase(),cat:newCat,vals:ev}]);
-    setNewName("");setShowAdd(false);
-  },[newName,newCat]);
+  const addProd=useCallback(()=>{if(!newName.trim())return;const ev={};SHOPS.forEach(s=>ev[s.id]=0);setProducts(pr=>[...pr,{id:Date.now(),name:newName.trim().toUpperCase(),cat:newCat,vals:ev}]);setNewName("");setShowAdd(false);},[newName,newCat]);
 
   const rTot=(p)=>SHOPS.reduce((s,sh)=>s+(p.vals[sh.id]||0),0);
   const fp=products.filter(p=>(filter==="TÜMÜ"||p.cat===filter)&&(!search||p.name.toLowerCase().includes(search.toLowerCase())));
@@ -239,78 +239,61 @@ function App(){
   const cellBlur=(pid,sid)=>{updVal(pid,sid,editVal);setEditingCell(null);};
   const cellKey=(e,pid,sid)=>{if(e.key==="Enter")cellBlur(pid,sid);if(e.key==="Escape")setEditingCell(null);};
   const inc=(pid,sid,d)=>{setProducts(pr=>pr.map(p=>p.id===pid?{...p,vals:{...p.vals,[sid]:Math.max(0,(p.vals[sid]||0)+d)}}:p));};
+  const copyFrom=(sd)=>{const src=allHistory[sd];if(src){setProducts(JSON.parse(JSON.stringify(src)));flash("📋 Kopyalandı","#6A1B9A");}};
+  const startFresh=()=>{setProducts(prev=>prev.map(p=>({...p,vals:Object.fromEntries(SHOPS.map(s=>[s.id,0]))})));flash("🔄 Sıfırlandı","#FF8F00");};
 
-  const copyFrom=(sd)=>{
-    const src=allHistory[sd];
-    if(src){setProducts(JSON.parse(JSON.stringify(src)));flash("📋 Kopyalandı","#6A1B9A");}
-  };
-  const startFresh=()=>{
-    setProducts(prev=>prev.map(p=>({...p,vals:Object.fromEntries(SHOPS.map(s=>[s.id,0]))})));
-    flash("🔄 Sıfırlandı","#FF8F00");
-  };
+  const expDay=()=>{styledExport(products,fmtDate(curDate),`Siparis_${curDate}.xlsx`);flash("📥 Excel indirildi!","#1565C0");};
 
-  // EXCEL
-  const expDay=()=>{
-    const hdr=["ÜRÜN ADI",...SHOPS.map(s=>s.name),"TOPLAM"];
-    const rows=products.map(p=>[p.name,...SHOPS.map(s=>p.vals[s.id]||0),rTot(p)]);
-    const tRow=["TOPLAM",...SHOPS.map(s=>products.reduce((a,p)=>a+(p.vals[s.id]||0),0)),products.reduce((a,p)=>a+rTot(p),0)];
-    const ws=XLSX.utils.aoa_to_sheet([hdr,...rows,tRow]);
-    ws['!cols']=[{wch:28},...SHOPS.map(()=>({wch:13})),{wch:10}];
-    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,fmtDate(curDate).slice(0,31));
-    XLSX.writeFile(wb,`Siparis_${curDate}.xlsx`);
-    flash("📥 Excel indirildi!","#1565C0");
-  };
   const expAll=()=>{
     const dates=Object.keys(allHistory).sort();
     if(!dates.length){flash("⚠ Kayıt yok!","#FF8F00");return;}
     const wb=XLSX.utils.book_new();
+    const border={top:{style:"thin",color:{rgb:"8B4513"}},bottom:{style:"thin",color:{rgb:"8B4513"}},left:{style:"thin",color:{rgb:"8B4513"}},right:{style:"thin",color:{rgb:"8B4513"}}};
     dates.forEach(dk=>{
-      const pr=allHistory[dk];if(!pr)return;
+      const pr=allHistory[dk];if(!pr||!Array.isArray(pr))return;
       const hdr=["ÜRÜN ADI",...SHOPS.map(s=>s.name),"TOPLAM"];
-      const rows=pr.map(p=>[p.name,...SHOPS.map(s=>p.vals[s.id]||0),SHOPS.reduce((a,s)=>a+(p.vals[s.id]||0),0)]);
-      const tRow=["TOPLAM",...SHOPS.map(s=>pr.reduce((a,p)=>a+(p.vals[s.id]||0),0)),pr.reduce((a,p)=>a+SHOPS.reduce((b,s)=>b+(p.vals[s.id]||0),0),0)];
-      const ws=XLSX.utils.aoa_to_sheet([hdr,...rows,tRow]);
+      const rows=pr.map(p=>{const t=SHOPS.reduce((a,s)=>a+(p.vals[s.id]||0),0);return[p.name,...SHOPS.map(s=>{const v=p.vals[s.id]||0;return v>0?v:"";}),t>0?t:""];});
+      const tRow=["TOPLAM",...SHOPS.map(s=>{const t=pr.reduce((a,p)=>a+(p.vals[s.id]||0),0);return t>0?t:"";}),pr.reduce((a,p)=>a+SHOPS.reduce((b,s)=>b+(p.vals[s.id]||0),0),0)];
+      const data=[hdr,...rows,tRow];
+      const ws=XLSX.utils.aoa_to_sheet(data);
       ws['!cols']=[{wch:28},...SHOPS.map(()=>({wch:13})),{wch:10}];
+      const range=XLSX.utils.decode_range(ws['!ref']);
+      for(let R=range.s.r;R<=range.e.r;R++){
+        for(let C=range.s.c;C<=range.e.c;C++){
+          const addr=XLSX.utils.encode_cell({r:R,c:C});
+          if(!ws[addr])ws[addr]={v:"",t:"s"};
+          if(R===0)ws[addr].s={font:{bold:true,color:{rgb:"FFFFFF"},sz:11},fill:{fgColor:{rgb:"5D3A1A"}},alignment:{horizontal:"center",vertical:"center"},border};
+          else if(R===range.e.r)ws[addr].s={font:{bold:true,color:{rgb:"FFFFFF"},sz:11},fill:{fgColor:{rgb:"8B4513"}},alignment:{horizontal:"center",vertical:"center"},border};
+          else if(C===0)ws[addr].s={font:{bold:true,color:{rgb:"CC0000"},sz:11},alignment:{horizontal:"left",vertical:"center"},border};
+          else ws[addr].s={alignment:{horizontal:"center",vertical:"center"},border};
+        }
+      }
       XLSX.utils.book_append_sheet(wb,ws,dk.replace(/-/g,"."));
     });
-    const allP=[...new Set(dates.flatMap(d=>(allHistory[d]||[]).map(p=>p.name)))];
-    const sH=["ÜRÜN",...dates.map(d=>{const x=fmtDate(d).split(" ");return x[0]+" "+x[1];})];
-    const sR=allP.map(pn=>[pn,...dates.map(d=>{const f=(allHistory[d]||[]).find(p=>p.name===pn);return f?SHOPS.reduce((a,s)=>a+(f.vals[s.id]||0),0):0;})]);
-    const sWs=XLSX.utils.aoa_to_sheet([sH,...sR]);
-    sWs['!cols']=[{wch:28},...dates.map(()=>({wch:14}))];
-    XLSX.utils.book_append_sheet(wb,sWs,"ÖZET");
     XLSX.writeFile(wb,`Siparis_Gecmis_${todayStr()}.xlsx`);
     flash("📥 Tüm geçmiş aktarıldı!","#1565C0");
   };
 
   const hDates=Object.keys(allHistory).sort().reverse();
 
-  const getHRows=()=>{
-    let r=[];
-    hDates.forEach(dk=>{
-      if(hf.from&&dk<hf.from)return;if(hf.to&&dk>hf.to)return;
-      const prods=allHistory[dk];if(!prods)return;
-      prods.forEach(p=>{
-        if(hf.prod&&!p.name.toLowerCase().includes(hf.prod.toLowerCase()))return;
-        SHOPS.forEach(s=>{
-          if(hf.shop!=="TÜMÜ"&&s.id!==hf.shop)return;
-          const v=p.vals[s.id]||0;
-          if(v>0)r.push({date:dk,dateTR:fmtDate(dk),product:p.name,cat:p.cat,shop:s.name,qty:v});
-        });
-      });
-    });
-    return r;
+  // ===== HISTORY: per-day shop summaries =====
+  const getDaySummary=(dk)=>{
+    const pr=allHistory[dk];if(!pr||!Array.isArray(pr))return{shops:[],total:0};
+    const shopTotals=SHOPS.map(s=>({...s,total:pr.reduce((a,p)=>a+(p.vals[s.id]||0),0)})).filter(s=>s.total>0);
+    const total=shopTotals.reduce((a,s)=>a+s.total,0);
+    return{shops:shopTotals,total};
   };
+
+  const filteredHDates=hDates.filter(dk=>{
+    if(hf.from&&dk<hf.from)return false;
+    if(hf.to&&dk>hf.to)return false;
+    if(hf.shop!=="TÜMÜ"){const pr=allHistory[dk];if(!pr||!Array.isArray(pr))return false;const t=pr.reduce((a,p)=>a+(p.vals[hf.shop]||0),0);if(t===0)return false;}
+    return true;
+  });
 
   const B=(bg)=>({padding:"9px 16px",borderRadius:"10px",border:"none",cursor:"pointer",background:bg,color:"#FFF",fontSize:"13px",fontWeight:700,boxShadow:"0 2px 8px rgba(0,0,0,.15)",whiteSpace:"nowrap"});
 
-  if(loading) return(
-    <div className="loading-overlay">
-      <div className="spinner"></div>
-      <p style={{marginTop:"16px",color:"#8B4513",fontWeight:700,fontSize:"16px"}}>Veriler yükleniyor...</p>
-      <p style={{marginTop:"6px",color:"#C0A080",fontSize:"12px"}}>Firebase'den senkronize ediliyor</p>
-    </div>
-  );
+  if(loading)return(<div className="loading-overlay"><div className="spinner"></div><p style={{marginTop:"16px",color:"#8B4513",fontWeight:700,fontSize:"16px"}}>Veriler yükleniyor...</p></div>);
 
   return(
     <div style={{padding:"16px",minHeight:"100vh"}}>
@@ -328,9 +311,7 @@ function App(){
             </div>
             <div style={{marginTop:"6px",display:"flex",alignItems:"center",gap:"6px"}}>
               <span className="sync-dot" style={{background:syncing?"#FFD700":online?"#4CAF50":"#F44336"}}></span>
-              <span style={{color:"rgba(255,255,255,.7)",fontSize:"11px",fontWeight:600}}>
-                {syncing?"Senkronize ediliyor...":online?"☁️ Firebase bağlı — tüm cihazlarda senkron":"⚠ Çevrimdışı"}
-              </span>
+              <span style={{color:"rgba(255,255,255,.7)",fontSize:"11px",fontWeight:600}}>{syncing?"Senkronize ediliyor...":online?"☁️ Firebase bağlı":"⚠ Çevrimdışı"}</span>
             </div>
           </div>
           <div style={{display:"flex",gap:"8px",alignItems:"center",flexWrap:"wrap"}}>
@@ -423,7 +404,7 @@ function App(){
         </div>
       </div>)}
 
-      {/* HISTORY */}
+      {/* ===== HISTORY — LISTE GÖRÜNÜMÜ ===== */}
       {tab==="gecmis"&&(<div style={{background:"#FFF",borderRadius:"0 12px 12px 12px",padding:"16px",boxShadow:"0 2px 12px rgba(0,0,0,.06)"}}>
         <div style={{display:"flex",gap:"8px",flexWrap:"wrap",alignItems:"center",marginBottom:"14px",paddingBottom:"14px",borderBottom:"2px solid #F0E6D6"}}>
           <span style={{fontSize:"12px",fontWeight:700,color:"#8B4513"}}>📅</span>
@@ -434,51 +415,73 @@ function App(){
             <option value="TÜMÜ">Tüm Şubeler</option>
             {SHOPS.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
-          <input type="text" placeholder="Ürün ara..." value={hf.prod} onChange={e=>setHf(f=>({...f,prod:e.target.value}))} style={{padding:"5px 8px",borderRadius:"8px",border:"2px solid #E8D5C0",fontSize:"12px",width:"120px"}}/>
+          <button onClick={expAll} style={B("#1565C0")}>📥 Tümünü Excel'e Aktar</button>
         </div>
 
-        {hDates.length===0?(<div style={{textAlign:"center",padding:"40px",color:"#CCC"}}><div style={{fontSize:"48px",marginBottom:"12px"}}>📭</div><div style={{fontSize:"15px",fontWeight:600}}>Henüz kayıt yok</div></div>)
-        :(<>
-          <h3 style={{fontSize:"13px",color:"#5D3A1A",marginBottom:"10px"}}>Kayıtlı Günler ({hDates.length})</h3>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:"8px",marginBottom:"16px"}}>
-            {hDates.map(d=>{const pr=allHistory[d];if(!pr||!Array.isArray(pr))return null;const dt=pr.reduce((s,p)=>s+SHOPS.reduce((ss,sh)=>ss+(p.vals[sh.id]||0),0),0);
-              return <div key={d} style={{background:"#FEFCF9",borderRadius:"10px",padding:"10px 12px",border:"1px solid #F0E6D6",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div><div style={{fontSize:"12px",fontWeight:700,color:"#4A3520"}}>{fmtDate(d)}</div><div style={{fontSize:"10px",color:"#AAA",marginTop:"2px"}}>{pr.length} ürün · {dt} adet</div></div>
-                <div style={{display:"flex",gap:"4px"}}>
-                  <button onClick={()=>{changeDate(d);setTab("liste");}} style={{padding:"4px 8px",borderRadius:"6px",border:"none",background:"#E8D5C0",cursor:"pointer",fontSize:"10px",fontWeight:700,color:"#5D3A1A"}}>Aç</button>
-                  <button onClick={()=>delDay(d)} style={{padding:"4px 8px",borderRadius:"6px",border:"none",background:"#FDE8E8",cursor:"pointer",fontSize:"10px",color:"#E74C3C"}}>Sil</button>
+        {filteredHDates.length===0?(<div style={{textAlign:"center",padding:"40px",color:"#CCC"}}><div style={{fontSize:"48px",marginBottom:"12px"}}>📭</div><div style={{fontSize:"15px",fontWeight:600}}>Kayıt bulunamadı</div></div>)
+        :(<div style={{display:"flex",flexDirection:"column",gap:"10px"}}>
+          {filteredHDates.map(dk=>{
+            const summ=getDaySummary(dk);
+            const isExp=expandedDay===dk;
+            const pr=allHistory[dk];
+            return(<div key={dk} style={{border:"1px solid #F0E6D6",borderRadius:"12px",overflow:"hidden"}}>
+              {/* Day header */}
+              <div onClick={()=>setExpandedDay(isExp?null:dk)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:"#FEFCF9",cursor:"pointer",userSelect:"none"}}
+                onMouseEnter={e=>e.currentTarget.style.background="#FFF5E6"} onMouseLeave={e=>e.currentTarget.style.background="#FEFCF9"}>
+                <div style={{display:"flex",alignItems:"center",gap:"12px",flex:1}}>
+                  <span style={{fontSize:"18px"}}>{isExp?"📂":"📁"}</span>
+                  <div>
+                    <div style={{fontSize:"14px",fontWeight:700,color:"#4A3520"}}>{fmtDate(dk)}</div>
+                    <div style={{fontSize:"11px",color:"#AAA",marginTop:"2px",display:"flex",gap:"8px",flexWrap:"wrap"}}>
+                      {summ.shops.map(s=>(
+                        <span key={s.id} style={{background:"#F5EDE3",padding:"1px 8px",borderRadius:"8px",fontWeight:600,color:"#5D3A1A"}}>{s.name}: <strong>{s.total}</strong></span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>;
-            })}
-          </div>
+                <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                  <div style={{background:"linear-gradient(135deg,#8B4513,#CD853F)",color:"#FFF",padding:"6px 14px",borderRadius:"8px",fontWeight:800,fontSize:"16px",minWidth:"60px",textAlign:"center"}}>{summ.total}</div>
+                  <div style={{display:"flex",gap:"4px"}}>
+                    <button onClick={e=>{e.stopPropagation();changeDate(dk);setTab("liste");}} style={{padding:"5px 10px",borderRadius:"6px",border:"none",background:"#E8D5C0",cursor:"pointer",fontSize:"11px",fontWeight:700,color:"#5D3A1A"}}>Düzenle</button>
+                    <button onClick={e=>{e.stopPropagation();
+                      if(pr&&Array.isArray(pr))styledExport(pr,fmtDate(dk),`Siparis_${dk}.xlsx`);flash("📥 İndirildi","#1565C0");
+                    }} style={{padding:"5px 10px",borderRadius:"6px",border:"none",background:"#1565C0",cursor:"pointer",fontSize:"11px",fontWeight:700,color:"#FFF"}}>Excel</button>
+                    <button onClick={e=>{e.stopPropagation();delDay(dk);}} style={{padding:"5px 10px",borderRadius:"6px",border:"none",background:"#FDE8E8",cursor:"pointer",fontSize:"11px",fontWeight:700,color:"#E74C3C"}}>Sil</button>
+                  </div>
+                </div>
+              </div>
 
-          <h3 style={{fontSize:"13px",color:"#5D3A1A",marginBottom:"10px"}}>Detaylı Geçmiş</h3>
-          <div style={{overflowX:"auto",borderRadius:"10px",border:"1px solid #E8D5C0"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:"11px"}}>
-              <thead><tr style={{background:"#F5EDE3"}}>
-                <th style={{padding:"7px 8px",textAlign:"left",fontWeight:700,color:"#5D3A1A"}}>TARİH</th>
-                <th style={{padding:"7px 8px",textAlign:"left",fontWeight:700,color:"#5D3A1A"}}>ÜRÜN</th>
-                <th style={{padding:"7px 8px",textAlign:"left",fontWeight:700,color:"#5D3A1A"}}>KATEGORİ</th>
-                <th style={{padding:"7px 8px",textAlign:"left",fontWeight:700,color:"#5D3A1A"}}>ŞUBE</th>
-                <th style={{padding:"7px 8px",textAlign:"center",fontWeight:700,color:"#5D3A1A"}}>ADET</th>
-              </tr></thead>
-              <tbody>{getHRows().slice(0,300).map((r,i)=>(
-                <tr key={i} className="history-row" style={{background:i%2===0?"#FFF":"#FEFCF9",borderBottom:"1px solid #F5EDE3"}}>
-                  <td style={{padding:"5px 8px",fontWeight:600,color:"#8B4513"}}>{r.dateTR}</td>
-                  <td style={{padding:"5px 8px",fontWeight:600}}>{r.product}</td>
-                  <td style={{padding:"5px 8px"}}><span style={{padding:"2px 7px",borderRadius:"10px",background:CAT_COLORS[r.cat]+"30",fontSize:"9px",fontWeight:700,color:"#5D3A1A"}}>{r.cat}</span></td>
-                  <td style={{padding:"5px 8px"}}>{r.shop}</td>
-                  <td style={{padding:"5px 8px",textAlign:"center",fontWeight:800,color:"#2E7D32"}}>{r.qty}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-            {getHRows().length>300&&<div style={{padding:"8px",textAlign:"center",color:"#999",fontSize:"11px"}}>İlk 300 kayıt gösterildi.</div>}
-            {getHRows().length===0&&<div style={{padding:"24px",textAlign:"center",color:"#CCC",fontSize:"12px"}}>Filtreye uygun kayıt yok</div>}
-          </div>
-        </>)}
+              {/* Expanded: shop breakdown table */}
+              {isExp&&pr&&Array.isArray(pr)&&(
+                <div style={{padding:"12px 16px",background:"#FFF",borderTop:"1px solid #F0E6D6"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:"11px"}}>
+                    <thead><tr style={{background:"#F5EDE3"}}>
+                      <th style={{padding:"6px 8px",textAlign:"left",fontWeight:700,color:"#5D3A1A"}}>ŞUBE</th>
+                      <th style={{padding:"6px 8px",textAlign:"center",fontWeight:700,color:"#5D3A1A"}}>TOPLAM ADET</th>
+                      <th style={{padding:"6px 8px",textAlign:"center",fontWeight:700,color:"#5D3A1A"}}>ÜRÜN ÇEŞİDİ</th>
+                      <th style={{padding:"6px 8px",textAlign:"left",fontWeight:700,color:"#5D3A1A"}}>EN ÇOK GİDENLER</th>
+                    </tr></thead>
+                    <tbody>{SHOPS.map((s,i)=>{
+                      const shopTotal=pr.reduce((a,p)=>a+(p.vals[s.id]||0),0);
+                      if(shopTotal===0)return null;
+                      const items=pr.filter(p=>(p.vals[s.id]||0)>0).sort((a,b)=>(b.vals[s.id]||0)-(a.vals[s.id]||0));
+                      const top3=items.slice(0,3).map(p=>`${p.name} (${p.vals[s.id]})`).join(", ");
+                      return(<tr key={s.id} style={{background:i%2===0?"#FFF":"#FEFCF9",borderBottom:"1px solid #F5EDE3"}}>
+                        <td style={{padding:"6px 8px",fontWeight:700,color:"#4A3520"}}>{s.name}</td>
+                        <td style={{padding:"6px 8px",textAlign:"center",fontWeight:800,color:"#2E7D32",fontSize:"14px"}}>{shopTotal}</td>
+                        <td style={{padding:"6px 8px",textAlign:"center",color:"#888"}}>{items.length} çeşit</td>
+                        <td style={{padding:"6px 8px",fontSize:"10px",color:"#8B4513"}}>{top3}</td>
+                      </tr>);
+                    })}</tbody>
+                  </table>
+                </div>
+              )}
+            </div>);
+          })}
+        </div>)}
       </div>)}
 
-      <p style={{textAlign:"center",color:"#C0A080",fontSize:"10px",marginTop:"12px"}}>☁️ Veriler Firebase'de saklanıyor — tüm cihazlarınızda otomatik senkronize</p>
+      <p style={{textAlign:"center",color:"#C0A080",fontSize:"10px",marginTop:"12px"}}>☁️ Firebase senkron · Tüm cihazlarda otomatik güncellenir</p>
     </div>
   );
 }
