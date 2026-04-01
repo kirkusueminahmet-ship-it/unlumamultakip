@@ -20,163 +20,100 @@ firebase.initializeApp({
   messagingSenderId:"627772395906",
   appId:"1:627772395906:web:29e684c7ecd0eeaa587f9b"
 });
-const db=firebase.database();
+var db=firebase.database();
 
-// ===== EXCEL EXPORT FUNCTION =====
-function makeStyledExcel(products, shops, dateLabel, fileName) {
+function makeExcel(products, shops, dateLabel, fileName) {
   var wb = XLSX.utils.book_new();
+  var bdr = {top:{style:"thin",color:{rgb:"666666"}},bottom:{style:"thin",color:{rgb:"666666"}},left:{style:"thin",color:{rgb:"666666"}},right:{style:"thin",color:{rgb:"666666"}}};
+  var bdrBold = {top:{style:"medium",color:{rgb:"000000"}},bottom:{style:"medium",color:{rgb:"000000"}},left:{style:"medium",color:{rgb:"000000"}},right:{style:"medium",color:{rgb:"000000"}}};
 
-  // Border style
-  var bdr = {
-    top:    {style:"thin", color:{rgb:"333333"}},
-    bottom: {style:"thin", color:{rgb:"333333"}},
-    left:   {style:"thin", color:{rgb:"333333"}},
-    right:  {style:"thin", color:{rgb:"333333"}}
-  };
-  var bdrThick = {
-    top:    {style:"medium", color:{rgb:"000000"}},
-    bottom: {style:"medium", color:{rgb:"000000"}},
-    left:   {style:"medium", color:{rgb:"000000"}},
-    right:  {style:"medium", color:{rgb:"000000"}}
-  };
-
-  // Build data array
   var data = [];
+  // Header
+  var hdr = ["ÜRÜN"];
+  shops.forEach(function(s){ hdr.push(s.name); });
+  hdr.push("TPLM");
+  data.push(hdr);
 
-  // Row 0: Title
-  var titleRow = [dateLabel];
-  for(var i=0; i<shops.length; i++) titleRow.push("");
-  titleRow.push("");
-  data.push(titleRow);
-
-  // Row 1: Empty spacer
-  data.push(Array(shops.length+2).fill(""));
-
-  // Row 2: Headers
-  var hdrRow = ["ÜRÜN ADI"];
-  shops.forEach(function(s){ hdrRow.push(s.name); });
-  hdrRow.push("TOPLAM");
-  data.push(hdrRow);
-
-  // Data rows
+  // Products
   products.forEach(function(p){
     var row = [p.name];
-    var rowSum = 0;
-    shops.forEach(function(s){
-      var v = (p.vals && p.vals[s.id]) ? p.vals[s.id] : 0;
-      rowSum += v;
-      row.push(v > 0 ? v : "");
-    });
-    row.push(rowSum > 0 ? rowSum : "");
+    var t = 0;
+    shops.forEach(function(s){ var v=(p.vals&&p.vals[s.id])||0; t+=v; row.push(v>0?v:""); });
+    row.push(t>0?t:"");
     data.push(row);
   });
 
-  // Totals row
+  // Totals
   var totRow = ["TOPLAM"];
-  var grandTotal = 0;
-  shops.forEach(function(s){
-    var t = 0;
-    products.forEach(function(p){ t += (p.vals && p.vals[s.id]) ? p.vals[s.id] : 0; });
-    grandTotal += t;
-    totRow.push(t > 0 ? t : "");
-  });
-  totRow.push(grandTotal);
+  var gt = 0;
+  shops.forEach(function(s){ var t=0; products.forEach(function(p){t+=(p.vals&&p.vals[s.id])||0;}); gt+=t; totRow.push(t>0?t:""); });
+  totRow.push(gt);
   data.push(totRow);
 
-  // Create worksheet
   var ws = XLSX.utils.aoa_to_sheet(data);
 
-  // Merge title row
-  ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:shops.length+1}}];
+  // A4 landscape = ~29.7cm wide. With 0.5cm margins = ~28.7cm usable
+  // At 8pt font, 1 char ≈ 2mm. So ~143 chars fit.
+  // We use: 24 + 7×8 + 7 = 87 chars. Plenty of room.
+  ws['!cols'] = [{wch:24}];
+  for(var i=0;i<shops.length;i++) ws['!cols'].push({wch:8});
+  ws['!cols'].push({wch:7});
 
-  // Column widths (A4 landscape fit: ~25 + 7*10 + 8 = 103 chars width)
-  var cols = [{wch:26}];
-  shops.forEach(function(){ cols.push({wch:10}); });
-  cols.push({wch:9});
-  ws['!cols'] = cols;
+  // Row heights - compact
+  ws['!rows'] = [{hpt:20}]; // header
+  for(var j=0;j<products.length;j++) ws['!rows'].push({hpt:14});
+  ws['!rows'].push({hpt:20}); // total
 
-  // Row heights
-  var rowHeights = [{hpt:32},{hpt:6},{hpt:22}];
-  products.forEach(function(){ rowHeights.push({hpt:18}); });
-  rowHeights.push({hpt:22});
-  ws['!rows'] = rowHeights;
+  // Print settings
+  ws['!pageSetup'] = {paperSize:9, orientation:"landscape", fitToWidth:1, fitToHeight:1};
+  ws['!margins'] = {left:0.2, right:0.2, top:0.3, bottom:0.3, header:0.1, footer:0.1};
+  // Header/footer with date
+  ws['!headerFooter'] = {oddHeader:"&C&B" + dateLabel};
 
-  // Page setup: fit to 1 page, A4 landscape
-  ws['!pageSetup'] = {
-    paperSize: 9,
-    orientation: "landscape",
-    fitToWidth: 1,
-    fitToHeight: 1,
-    scale: 75
-  };
-  ws['!margins'] = {left:0.3, right:0.3, top:0.4, bottom:0.4, header:0.2, footer:0.2};
-
-  // Apply styles to every cell
+  // Styles
   var range = XLSX.utils.decode_range(ws['!ref']);
-  var lastRow = range.e.r;
-  var lastCol = range.e.c;
-  var headerRow = 2;
+  for(var R=0;R<=range.e.r;R++){
+    for(var C=0;C<=range.e.c;C++){
+      var addr = XLSX.utils.encode_cell({r:R,c:C});
+      if(!ws[addr]) ws[addr]={v:"",t:"s"};
 
-  for(var R = 0; R <= lastRow; R++){
-    for(var C = 0; C <= lastCol; C++){
-      var addr = XLSX.utils.encode_cell({r:R, c:C});
-      if(!ws[addr]) ws[addr] = {v:"", t:"s"};
-      var cell = ws[addr];
-
-      if(R === 0){
-        // ===== TITLE ROW =====
-        cell.s = {
-          font: {bold:true, sz:16, color:{rgb:"8B4513"}, name:"Arial"},
-          alignment: {horizontal:"center", vertical:"center"},
-          fill: {fgColor:{rgb:"FFF8DC"}},
-          border: bdrThick
+      if(R===0){
+        // HEADER
+        ws[addr].s = {
+          font:{bold:true, sz:8, color:{rgb:"FFFFFF"}, name:"Arial"},
+          fill:{fgColor:{rgb:"5D3A1A"}},
+          alignment:{horizontal:"center", vertical:"center", wrapText:true},
+          border:bdrBold
         };
-      }
-      else if(R === 1){
-        // ===== SPACER ROW =====
-        cell.s = {border:{}};
-      }
-      else if(R === headerRow){
-        // ===== HEADER ROW =====
-        cell.s = {
-          font: {bold:true, sz:10, color:{rgb:"FFFFFF"}, name:"Arial"},
-          fill: {fgColor:{rgb:"5D3A1A"}},
-          alignment: {horizontal:"center", vertical:"center", wrapText:true},
-          border: bdrThick
+      } else if(R===range.e.r){
+        // TOPLAM ROW
+        ws[addr].s = {
+          font:{bold:true, sz:9, color:{rgb:"FFFFFF"}, name:"Arial"},
+          fill:{fgColor:{rgb:"8B4513"}},
+          alignment:{horizontal:"center", vertical:"center"},
+          border:bdrBold
         };
-      }
-      else if(R === lastRow){
-        // ===== TOTALS ROW =====
-        cell.s = {
-          font: {bold:true, sz:11, color:{rgb:"FFFFFF"}, name:"Arial"},
-          fill: {fgColor:{rgb:"8B4513"}},
-          alignment: {horizontal:"center", vertical:"center"},
-          border: bdrThick
+      } else if(C===0){
+        // ÜRÜN ADI — KIRMIZI KALIN
+        ws[addr].s = {
+          font:{bold:true, sz:8, color:{rgb:"CC0000"}, name:"Arial"},
+          alignment:{horizontal:"left", vertical:"center"},
+          border:bdr
         };
-      }
-      else if(C === 0){
-        // ===== PRODUCT NAME — RED BOLD =====
-        cell.s = {
-          font: {bold:true, sz:9, color:{rgb:"CC0000"}, name:"Arial"},
-          alignment: {horizontal:"left", vertical:"center"},
-          border: bdr
+      } else if(C===range.e.c){
+        // SATIR TOPLAMI
+        ws[addr].s = {
+          font:{bold:true, sz:8, color:{rgb:"8B4513"}, name:"Arial"},
+          fill:{fgColor:{rgb:"FFF8DC"}},
+          alignment:{horizontal:"center", vertical:"center"},
+          border:bdr
         };
-      }
-      else if(C === lastCol){
-        // ===== ROW TOTAL COLUMN =====
-        cell.s = {
-          font: {bold:true, sz:10, color:{rgb:"8B4513"}, name:"Arial"},
-          fill: {fgColor:{rgb:"FFF8DC"}},
-          alignment: {horizontal:"center", vertical:"center"},
-          border: bdr
-        };
-      }
-      else {
-        // ===== NUMBER CELLS =====
-        cell.s = {
-          font: {sz:10, name:"Arial"},
-          alignment: {horizontal:"center", vertical:"center"},
-          border: bdr
+      } else {
+        // RAKAMLAR
+        ws[addr].s = {
+          font:{sz:8, name:"Arial"},
+          alignment:{horizontal:"center", vertical:"center"},
+          border:bdr
         };
       }
     }
@@ -189,57 +126,36 @@ function makeStyledExcel(products, shops, dateLabel, fileName) {
 function makeAllExcel(allHistory, shops) {
   var dates = Object.keys(allHistory).sort();
   if(!dates.length) return false;
-
   var wb = XLSX.utils.book_new();
-  var bdr = {top:{style:"thin",color:{rgb:"333333"}},bottom:{style:"thin",color:{rgb:"333333"}},left:{style:"thin",color:{rgb:"333333"}},right:{style:"thin",color:{rgb:"333333"}}};
-  var bdrThick = {top:{style:"medium",color:{rgb:"000000"}},bottom:{style:"medium",color:{rgb:"000000"}},left:{style:"medium",color:{rgb:"000000"}},right:{style:"medium",color:{rgb:"000000"}}};
+  var bdr = {top:{style:"thin",color:{rgb:"666666"}},bottom:{style:"thin",color:{rgb:"666666"}},left:{style:"thin",color:{rgb:"666666"}},right:{style:"thin",color:{rgb:"666666"}}};
+  var bdrBold = {top:{style:"medium",color:{rgb:"000000"}},bottom:{style:"medium",color:{rgb:"000000"}},left:{style:"medium",color:{rgb:"000000"}},right:{style:"medium",color:{rgb:"000000"}}};
 
   dates.forEach(function(dk){
-    var pr = allHistory[dk];
-    if(!pr || !Array.isArray(pr)) return;
-
-    var hdr = ["ÜRÜN ADI"];
-    shops.forEach(function(s){ hdr.push(s.name); });
-    hdr.push("TOPLAM");
-
-    var rows = pr.map(function(p){
-      var row = [p.name];
-      var t = 0;
-      shops.forEach(function(s){ var v=(p.vals&&p.vals[s.id])||0; t+=v; row.push(v>0?v:""); });
-      row.push(t>0?t:"");
-      return row;
-    });
-
-    var totRow = ["TOPLAM"];
-    var gt = 0;
-    shops.forEach(function(s){ var t=0; pr.forEach(function(p){t+=(p.vals&&p.vals[s.id])||0;}); gt+=t; totRow.push(t>0?t:""); });
-    totRow.push(gt);
-
-    var data = [hdr, ...rows, totRow];
-    var ws = XLSX.utils.aoa_to_sheet(data);
-
-    ws['!cols'] = [{wch:26}, ...shops.map(function(){return{wch:10};}), {wch:9}];
-    ws['!pageSetup'] = {paperSize:9, orientation:"landscape", fitToWidth:1, fitToHeight:1, scale:75};
-    ws['!margins'] = {left:0.3,right:0.3,top:0.4,bottom:0.4,header:0.2,footer:0.2};
-
-    var range = XLSX.utils.decode_range(ws['!ref']);
+    var pr = allHistory[dk]; if(!pr||!Array.isArray(pr)) return;
+    var hdr=["ÜRÜN"]; shops.forEach(function(s){hdr.push(s.name);}); hdr.push("TPLM");
+    var rows=pr.map(function(p){var row=[p.name];var t=0;shops.forEach(function(s){var v=(p.vals&&p.vals[s.id])||0;t+=v;row.push(v>0?v:"");});row.push(t>0?t:"");return row;});
+    var totRow=["TOPLAM"];var gt=0;shops.forEach(function(s){var t=0;pr.forEach(function(p){t+=(p.vals&&p.vals[s.id])||0;});gt+=t;totRow.push(t>0?t:"");});totRow.push(gt);
+    var data=[hdr,...rows,totRow];
+    var ws=XLSX.utils.aoa_to_sheet(data);
+    ws['!cols']=[{wch:24}]; for(var i=0;i<shops.length;i++) ws['!cols'].push({wch:8}); ws['!cols'].push({wch:7});
+    ws['!rows']=[{hpt:20}]; for(var j=0;j<pr.length;j++) ws['!rows'].push({hpt:14}); ws['!rows'].push({hpt:20});
+    ws['!pageSetup']={paperSize:9,orientation:"landscape",fitToWidth:1,fitToHeight:1};
+    ws['!margins']={left:0.2,right:0.2,top:0.3,bottom:0.3,header:0.1,footer:0.1};
+    var range=XLSX.utils.decode_range(ws['!ref']);
     for(var R=0;R<=range.e.r;R++){
       for(var C=0;C<=range.e.c;C++){
         var addr=XLSX.utils.encode_cell({r:R,c:C});
         if(!ws[addr])ws[addr]={v:"",t:"s"};
-        if(R===0) ws[addr].s={font:{bold:true,sz:10,color:{rgb:"FFFFFF"},name:"Arial"},fill:{fgColor:{rgb:"5D3A1A"}},alignment:{horizontal:"center",vertical:"center",wrapText:true},border:bdrThick};
-        else if(R===range.e.r) ws[addr].s={font:{bold:true,sz:11,color:{rgb:"FFFFFF"},name:"Arial"},fill:{fgColor:{rgb:"8B4513"}},alignment:{horizontal:"center",vertical:"center"},border:bdrThick};
-        else if(C===0) ws[addr].s={font:{bold:true,sz:9,color:{rgb:"CC0000"},name:"Arial"},alignment:{horizontal:"left",vertical:"center"},border:bdr};
-        else if(C===range.e.c) ws[addr].s={font:{bold:true,sz:10,color:{rgb:"8B4513"},name:"Arial"},fill:{fgColor:{rgb:"FFF8DC"}},alignment:{horizontal:"center",vertical:"center"},border:bdr};
-        else ws[addr].s={font:{sz:10,name:"Arial"},alignment:{horizontal:"center",vertical:"center"},border:bdr};
+        if(R===0)ws[addr].s={font:{bold:true,sz:8,color:{rgb:"FFFFFF"},name:"Arial"},fill:{fgColor:{rgb:"5D3A1A"}},alignment:{horizontal:"center",vertical:"center",wrapText:true},border:bdrBold};
+        else if(R===range.e.r)ws[addr].s={font:{bold:true,sz:9,color:{rgb:"FFFFFF"},name:"Arial"},fill:{fgColor:{rgb:"8B4513"}},alignment:{horizontal:"center",vertical:"center"},border:bdrBold};
+        else if(C===0)ws[addr].s={font:{bold:true,sz:8,color:{rgb:"CC0000"},name:"Arial"},alignment:{horizontal:"left",vertical:"center"},border:bdr};
+        else if(C===range.e.c)ws[addr].s={font:{bold:true,sz:8,color:{rgb:"8B4513"},name:"Arial"},fill:{fgColor:{rgb:"FFF8DC"}},alignment:{horizontal:"center",vertical:"center"},border:bdr};
+        else ws[addr].s={font:{sz:8,name:"Arial"},alignment:{horizontal:"center",vertical:"center"},border:bdr};
       }
     }
-
-    XLSX.utils.book_append_sheet(wb, ws, dk.replace(/-/g,"."));
+    XLSX.utils.book_append_sheet(wb,ws,dk.replace(/-/g,"."));
   });
-
-  var todayISO = new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb, "Siparis_Gecmis_"+todayISO+".xlsx");
+  XLSX.writeFile(wb,"Siparis_Gecmis_"+new Date().toISOString().slice(0,10)+".xlsx");
   return true;
 }
 </script>
@@ -261,41 +177,16 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:linear-g
 <div id="root"></div>
 <script type="text/babel">
 const {useState,useCallback,useRef,useEffect}=React;
-
-const SHOPS=[
-  {id:"koc",name:"KOÇ ŞUBE"},{id:"merol",name:"MEROL"},{id:"inc",name:"İNC. ŞUBE"},
-  {id:"eko",name:"EKO MİNİ"},{id:"seckin",name:"SEÇKİN BÜFE"},{id:"ogrt",name:"ÖĞRT. EVİ"},{id:"buyuk",name:"BÜYÜK DERE"},
-];
-
-const TEMPLATE=[
-  {id:1,name:"SÜTLÜ SİMİT",cat:"SİMİT"},{id:2,name:"ÇITIR SİMİT",cat:"SİMİT"},{id:3,name:"YAĞLI SİMİT",cat:"SİMİT"},
-  {id:4,name:"UZUN SMT ÇİKOLATA",cat:"SİMİT"},{id:5,name:"UZUN SMT KAŞARLI",cat:"SİMİT"},{id:6,name:"KUMRU",cat:"SİMİT"},
-  {id:7,name:"PUAÇA PEYNİRLİ",cat:"AÇMA"},{id:8,name:"UZUN AÇMA PEYNİRLİ",cat:"AÇMA"},{id:9,name:"UZUN AÇMA PATATESLİ",cat:"AÇMA"},
-  {id:10,name:"UZUN AÇMA KAŞARLI",cat:"AÇMA"},{id:11,name:"UZUN AÇMA ÇİKOLATALI",cat:"AÇMA"},{id:12,name:"UZUN AÇMA ZEYTİNLİ",cat:"AÇMA"},
-  {id:13,name:"UZUN AÇMA TAHİNLİ",cat:"AÇMA"},{id:14,name:"UZUN AÇMA SOSİSİLİ",cat:"AÇMA"},{id:15,name:"AÇMA SADE",cat:"AÇMA"},
-  {id:16,name:"AÇMA ÇİKOLATALI",cat:"AÇMA"},{id:17,name:"AÇMA CEVİZLİ",cat:"AÇMA"},{id:18,name:"AÇMA ZEYTİNLİ",cat:"AÇMA"},
-  {id:19,name:"KARAKÖY PEYNİRLİ",cat:"KARAKÖY"},{id:20,name:"KARAKÖY PATATESLİ",cat:"KARAKÖY"},{id:21,name:"KARAKÖY KAŞARLI",cat:"KARAKÖY"},
-  {id:22,name:"KARAKÖY ÇİKOLATALI",cat:"KARAKÖY"},{id:23,name:"KARAKÖY ZEYTİNLİ",cat:"KARAKÖY"},{id:24,name:"KARAKÖY SOSİSLİ",cat:"KARAKÖY"},
-  {id:25,name:"KARAKÖY SADE",cat:"KARAKÖY"},
-  {id:26,name:"PİZZA",cat:"DİĞER"},{id:27,name:"TAHİNLİ",cat:"DİĞER"},{id:28,name:"KURABİYE",cat:"DİĞER"},
-  {id:29,name:"OTLU PUAÇA",cat:"DİĞER"},{id:30,name:"YENİ TAHİNLİ",cat:"DİĞER"},
-  {id:31,name:"BOYOZ",cat:"BOYOZ"},{id:32,name:"TAHİNLİ BOYOZ",cat:"BOYOZ"},{id:33,name:"ÇİKOLATALI BOYOZ",cat:"BOYOZ"},
-  {id:34,name:"MİLFÖY BÜYÜK PEYNİRLİ",cat:"BOYOZ"},{id:35,name:"MİLFÖY BÜYÜK KIYMALI",cat:"BOYOZ"},{id:36,name:"MİLFÖY BÜYÜK PATATESLİ",cat:"BOYOZ"},
-  {id:37,name:"DOMATES KAŞAR BOYOZ",cat:"BOYOZ"},
-  {id:38,name:"ÇATAL PEYNİRLİ",cat:"ÇATAL"},{id:39,name:"ÇATAL KIYMALI",cat:"ÇATAL"},{id:40,name:"ÇATAL PATLICANLI",cat:"ÇATAL"},{id:41,name:"ÇATAL PATATESLİ",cat:"ÇATAL"},
-];
-
+const SHOPS=[{id:"koc",name:"KOÇ ŞUBE"},{id:"merol",name:"MEROL"},{id:"inc",name:"İNC. ŞUBE"},{id:"eko",name:"EKO MİNİ"},{id:"seckin",name:"SEÇKİN BÜFE"},{id:"ogrt",name:"ÖĞRT. EVİ"},{id:"buyuk",name:"BÜYÜK DERE"}];
+const TEMPLATE=[{id:1,name:"SÜTLÜ SİMİT",cat:"SİMİT"},{id:2,name:"ÇITIR SİMİT",cat:"SİMİT"},{id:3,name:"YAĞLI SİMİT",cat:"SİMİT"},{id:4,name:"UZUN SMT ÇİKOLATA",cat:"SİMİT"},{id:5,name:"UZUN SMT KAŞARLI",cat:"SİMİT"},{id:6,name:"KUMRU",cat:"SİMİT"},{id:7,name:"PUAÇA PEYNİRLİ",cat:"AÇMA"},{id:8,name:"UZUN AÇMA PEYNİRLİ",cat:"AÇMA"},{id:9,name:"UZUN AÇMA PATATESLİ",cat:"AÇMA"},{id:10,name:"UZUN AÇMA KAŞARLI",cat:"AÇMA"},{id:11,name:"UZUN AÇMA ÇİKOLATALI",cat:"AÇMA"},{id:12,name:"UZUN AÇMA ZEYTİNLİ",cat:"AÇMA"},{id:13,name:"UZUN AÇMA TAHİNLİ",cat:"AÇMA"},{id:14,name:"UZUN AÇMA SOSİSİLİ",cat:"AÇMA"},{id:15,name:"AÇMA SADE",cat:"AÇMA"},{id:16,name:"AÇMA ÇİKOLATALI",cat:"AÇMA"},{id:17,name:"AÇMA CEVİZLİ",cat:"AÇMA"},{id:18,name:"AÇMA ZEYTİNLİ",cat:"AÇMA"},{id:19,name:"KARAKÖY PEYNİRLİ",cat:"KARAKÖY"},{id:20,name:"KARAKÖY PATATESLİ",cat:"KARAKÖY"},{id:21,name:"KARAKÖY KAŞARLI",cat:"KARAKÖY"},{id:22,name:"KARAKÖY ÇİKOLATALI",cat:"KARAKÖY"},{id:23,name:"KARAKÖY ZEYTİNLİ",cat:"KARAKÖY"},{id:24,name:"KARAKÖY SOSİSLİ",cat:"KARAKÖY"},{id:25,name:"KARAKÖY SADE",cat:"KARAKÖY"},{id:26,name:"PİZZA",cat:"DİĞER"},{id:27,name:"TAHİNLİ",cat:"DİĞER"},{id:28,name:"KURABİYE",cat:"DİĞER"},{id:29,name:"OTLU PUAÇA",cat:"DİĞER"},{id:30,name:"YENİ TAHİNLİ",cat:"DİĞER"},{id:31,name:"BOYOZ",cat:"BOYOZ"},{id:32,name:"TAHİNLİ BOYOZ",cat:"BOYOZ"},{id:33,name:"ÇİKOLATALI BOYOZ",cat:"BOYOZ"},{id:34,name:"MİLFÖY BÜYÜK PEYNİRLİ",cat:"BOYOZ"},{id:35,name:"MİLFÖY BÜYÜK KIYMALI",cat:"BOYOZ"},{id:36,name:"MİLFÖY BÜYÜK PATATESLİ",cat:"BOYOZ"},{id:37,name:"DOMATES KAŞAR BOYOZ",cat:"BOYOZ"},{id:38,name:"ÇATAL PEYNİRLİ",cat:"ÇATAL"},{id:39,name:"ÇATAL KIYMALI",cat:"ÇATAL"},{id:40,name:"ÇATAL PATLICANLI",cat:"ÇATAL"},{id:41,name:"ÇATAL PATATESLİ",cat:"ÇATAL"}];
 const FIRST_VALS={koc:[120,40,10,3,3,7,5,8,7,10,3,0,3,0,15,5,3,3,20,15,30,5,5,5,5,10,3,10,15,2,25,15,5,0,0,0,15,10,15,2,5],merol:[70,0,0,0,0,0,5,3,3,0,0,0,0,0,7,7,0,0,15,15,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],inc:[30,15,0,0,0,5,0,2,2,0,0,0,0,0,6,2,2,2,5,10,20,2,2,2,0,2,2,0,0,0,10,3,5,0,0,0,3,2,3,0,0],eko:[20,20,0,0,0,0,0,5,5,5,5,5,5,5,5,2,2,2,10,5,10,5,2,2,0,3,2,5,15,0,10,5,0,0,0,0,5,4,5,0,3],seckin:[5,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,5,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],ogrt:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],buyuk:[15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]};
-
 const CATEGORIES=["SİMİT","AÇMA","KARAKÖY","DİĞER","BOYOZ","ÇATAL"];
 const CAT_COLORS={"SİMİT":"#D4A574","AÇMA":"#E8C07A","KARAKÖY":"#C1886D","DİĞER":"#A8B5A2","BOYOZ":"#D4A090","ÇATAL":"#B8A9C9"};
 const DAYS_TR=["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];
 const MONTHS_TR=["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
-
 function fmtDate(ds){const d=new Date(ds+"T00:00:00");return `${d.getDate()} ${MONTHS_TR[d.getMonth()]} ${d.getFullYear()} ${DAYS_TR[d.getDay()]}`;}
 function todayStr(){return new Date().toISOString().slice(0,10);}
 function buildFirstDay(){return TEMPLATE.map((p,i)=>{const vals={};SHOPS.forEach(s=>{vals[s.id]=FIRST_VALS[s.id][i]||0;});return{...p,vals};});}
-
 function fbSave(dk,pr){return db.ref("days/"+dk).set(pr);}
 function fbLoad(dk){return db.ref("days/"+dk).once("value").then(s=>s.val());}
 function fbLoadAll(){return db.ref("days").once("value").then(s=>s.val()||{});}
@@ -318,94 +209,33 @@ function App(){
   const [toast,setToast]=useState(null);
   const [hf,setHf]=useState({from:"",to:"",shop:"TÜMÜ"});
   const [allHistory,setAllHistory]=useState({});
-  const iRef=useRef(null);
-  const aRef=useRef(null);
-  const saveTimer=useRef(null);
-  const listenerRef=useRef(null);
-  const skipNext=useRef(false);
-
+  const iRef=useRef(null);const aRef=useRef(null);const saveTimer=useRef(null);const listenerRef=useRef(null);const skipNext=useRef(false);
   useEffect(()=>{if(editingCell&&iRef.current)iRef.current.focus();},[editingCell]);
   useEffect(()=>{if(showAdd&&aRef.current)aRef.current.focus();},[showAdd]);
-
   const flash=(msg,c)=>{setToast({msg,c});setTimeout(()=>setToast(null),2500);};
-
-  const attachListener=(dk)=>{
-    if(listenerRef.current)listenerRef.current();
-    const ref=db.ref("days/"+dk);
-    const h=ref.on("value",(snap)=>{if(skipNext.current){skipNext.current=false;return;}const d=snap.val();if(d)setProducts(d);});
-    listenerRef.current=()=>ref.off("value",h);
-  };
-
-  useEffect(()=>{
-    (async()=>{
-      try{
-        const data=await fbLoad(todayStr());
-        if(data)setProducts(data);
-        else{const all=await fbLoadAll();const ds=Object.keys(all).sort();if(ds.length>0)setProducts(JSON.parse(JSON.stringify(all[ds[ds.length-1]])));else setProducts(buildFirstDay());}
-        setAllHistory(await fbLoadAll());attachListener(todayStr());setOnline(true);
-      }catch(e){setOnline(false);flash("⚠ Bağlantı yok","#FF8F00");}
-      setLoading(false);
-    })();
-    return()=>{if(listenerRef.current)listenerRef.current();};
-  },[]);
-
-  useEffect(()=>{
-    if(loading)return;
-    if(saveTimer.current)clearTimeout(saveTimer.current);
-    saveTimer.current=setTimeout(async()=>{
-      setSyncing(true);
-      try{skipNext.current=true;await fbSave(curDate,products);setAllHistory(prev=>({...prev,[curDate]:products}));}
-      catch(e){flash("⚠ Kayıt başarısız","#DC3545");}
-      setSyncing(false);
-    },800);
-    return()=>clearTimeout(saveTimer.current);
-  },[products,curDate,loading]);
-
-  const changeDate=async(nd)=>{
-    setLoading(true);setCurDate(nd);
-    try{
-      const data=await fbLoad(nd);
-      if(data)setProducts(data);
-      else{const all=await fbLoadAll();const ds=Object.keys(all).sort();const prev=ds.filter(d=>d<=nd).pop()||ds[ds.length-1];if(prev&&all[prev])setProducts(JSON.parse(JSON.stringify(all[prev])));else setProducts(TEMPLATE.map(p=>({...p,vals:Object.fromEntries(SHOPS.map(s=>[s.id,0]))})));}
-      attachListener(nd);setAllHistory(await fbLoadAll());
-    }catch(e){flash("⚠ Yüklenemedi","#DC3545");}
-    setLoading(false);
-  };
-
+  const attachListener=(dk)=>{if(listenerRef.current)listenerRef.current();const ref=db.ref("days/"+dk);const h=ref.on("value",(snap)=>{if(skipNext.current){skipNext.current=false;return;}const d=snap.val();if(d)setProducts(d);});listenerRef.current=()=>ref.off("value",h);};
+  useEffect(()=>{(async()=>{try{const data=await fbLoad(todayStr());if(data)setProducts(data);else{const all=await fbLoadAll();const ds=Object.keys(all).sort();if(ds.length>0)setProducts(JSON.parse(JSON.stringify(all[ds[ds.length-1]])));else setProducts(buildFirstDay());}setAllHistory(await fbLoadAll());attachListener(todayStr());setOnline(true);}catch(e){setOnline(false);flash("⚠ Bağlantı yok","#FF8F00");}setLoading(false);})();return()=>{if(listenerRef.current)listenerRef.current();};},[]);
+  useEffect(()=>{if(loading)return;if(saveTimer.current)clearTimeout(saveTimer.current);saveTimer.current=setTimeout(async()=>{setSyncing(true);try{skipNext.current=true;await fbSave(curDate,products);setAllHistory(prev=>({...prev,[curDate]:products}));}catch(e){flash("⚠ Kayıt başarısız","#DC3545");}setSyncing(false);},800);return()=>clearTimeout(saveTimer.current);},[products,curDate,loading]);
+  const changeDate=async(nd)=>{setLoading(true);setCurDate(nd);try{const data=await fbLoad(nd);if(data)setProducts(data);else{const all=await fbLoadAll();const ds=Object.keys(all).sort();const prev=ds.filter(d=>d<=nd).pop()||ds[ds.length-1];if(prev&&all[prev])setProducts(JSON.parse(JSON.stringify(all[prev])));else setProducts(TEMPLATE.map(p=>({...p,vals:Object.fromEntries(SHOPS.map(s=>[s.id,0]))})));}attachListener(nd);setAllHistory(await fbLoadAll());}catch(e){flash("⚠ Yüklenemedi","#DC3545");}setLoading(false);};
   const delDay=async(dk)=>{if(!confirm(`${fmtDate(dk)} silinsin mi?`))return;try{await fbDelete(dk);setAllHistory(prev=>{const n={...prev};delete n[dk];return n;});flash("🗑 Silindi","#DC3545");}catch(e){}};
-
   const updVal=useCallback((pid,sid,v)=>{setProducts(pr=>pr.map(p=>p.id===pid?{...p,vals:{...p.vals,[sid]:Math.max(0,parseInt(v)||0)}}:p));},[]);
   const rmProd=useCallback((id)=>{setProducts(pr=>pr.filter(p=>p.id!==id));},[]);
   const addProd=useCallback(()=>{if(!newName.trim())return;const ev={};SHOPS.forEach(s=>ev[s.id]=0);setProducts(pr=>[...pr,{id:Date.now(),name:newName.trim().toUpperCase(),cat:newCat,vals:ev}]);setNewName("");setShowAdd(false);},[newName,newCat]);
-
   const rTot=(p)=>SHOPS.reduce((s,sh)=>s+(p.vals[sh.id]||0),0);
   const fp=products.filter(p=>(filter==="TÜMÜ"||p.cat===filter)&&(!search||p.name.toLowerCase().includes(search.toLowerCase())));
   const cTot=(sid)=>fp.reduce((s,p)=>s+(p.vals[sid]||0),0);
   const gTot=SHOPS.reduce((s,sh)=>s+cTot(sh.id),0);
-
   const cellClick=(pid,sid,cv)=>{setEditingCell(`${pid}-${sid}`);setEditVal(String(cv||0));};
   const cellBlur=(pid,sid)=>{updVal(pid,sid,editVal);setEditingCell(null);};
   const cellKey=(e,pid,sid)=>{if(e.key==="Enter")cellBlur(pid,sid);if(e.key==="Escape")setEditingCell(null);};
   const inc=(pid,sid,d)=>{setProducts(pr=>pr.map(p=>p.id===pid?{...p,vals:{...p.vals,[sid]:Math.max(0,(p.vals[sid]||0)+d)}}:p));};
   const copyFrom=(sd)=>{const src=allHistory[sd];if(src){setProducts(JSON.parse(JSON.stringify(src)));flash("📋 Kopyalandı","#6A1B9A");}};
   const startFresh=()=>{setProducts(prev=>prev.map(p=>({...p,vals:Object.fromEntries(SHOPS.map(s=>[s.id,0]))})));flash("🔄 Sıfırlandı","#FF8F00");};
-
-  // Excel exports using global functions
-  const expDay=()=>{makeStyledExcel(products,SHOPS,fmtDate(curDate),`Siparis_${curDate}.xlsx`);flash("📥 Excel indirildi!","#1565C0");};
+  const expDay=()=>{makeExcel(products,SHOPS,fmtDate(curDate),"Siparis_"+curDate+".xlsx");flash("📥 Excel indirildi!","#1565C0");};
   const expAll=()=>{if(makeAllExcel(allHistory,SHOPS))flash("📥 Aktarıldı!","#1565C0");else flash("⚠ Kayıt yok!","#FF8F00");};
-
   const hDates=Object.keys(allHistory).sort().reverse();
-  const filteredHDates=hDates.filter(dk=>{
-    if(hf.from&&dk<hf.from)return false;if(hf.to&&dk>hf.to)return false;
-    if(hf.shop!=="TÜMÜ"){const pr=allHistory[dk];if(!pr||!Array.isArray(pr))return false;if(pr.reduce((a,p)=>a+(p.vals[hf.shop]||0),0)===0)return false;}
-    return true;
-  });
-  const getDaySummary=(dk)=>{
-    const pr=allHistory[dk];if(!pr||!Array.isArray(pr))return{shops:[],total:0};
-    const st=SHOPS.map(s=>({...s,total:pr.reduce((a,p)=>a+(p.vals[s.id]||0),0)})).filter(s=>s.total>0);
-    return{shops:st,total:st.reduce((a,s)=>a+s.total,0)};
-  };
-
+  const filteredHDates=hDates.filter(dk=>{if(hf.from&&dk<hf.from)return false;if(hf.to&&dk>hf.to)return false;if(hf.shop!=="TÜMÜ"){const pr=allHistory[dk];if(!pr||!Array.isArray(pr))return false;if(pr.reduce((a,p)=>a+(p.vals[hf.shop]||0),0)===0)return false;}return true;});
+  const getDaySummary=(dk)=>{const pr=allHistory[dk];if(!pr||!Array.isArray(pr))return{shops:[],total:0};const st=SHOPS.map(s=>({...s,total:pr.reduce((a,p)=>a+(p.vals[s.id]||0),0)})).filter(s=>s.total>0);return{shops:st,total:st.reduce((a,s)=>a+s.total,0)};};
   const B=(bg)=>({padding:"9px 16px",borderRadius:"10px",border:"none",cursor:"pointer",background:bg,color:"#FFF",fontSize:"13px",fontWeight:700,boxShadow:"0 2px 8px rgba(0,0,0,.15)",whiteSpace:"nowrap"});
 
   if(loading)return(<div className="loading-overlay"><div className="spinner"></div><p style={{marginTop:"16px",color:"#8B4513",fontWeight:700}}>Yükleniyor...</p></div>);
@@ -413,8 +243,6 @@ function App(){
   return(
     <div style={{padding:"16px",minHeight:"100vh"}}>
       {toast&&<div className="toast" style={{background:toast.c}}>{toast.msg}</div>}
-
-      {/* HEADER */}
       <div style={{background:"linear-gradient(135deg,#8B4513 0%,#A0522D 50%,#CD853F 100%)",borderRadius:"16px",padding:"20px 24px",marginBottom:"16px",boxShadow:"0 8px 32px rgba(139,69,19,.3)",position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,opacity:.06,backgroundImage:"repeating-linear-gradient(45deg,transparent,transparent 20px,#fff 20px,#fff 22px)"}}/>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",position:"relative",flexWrap:"wrap",gap:"12px"}}>
@@ -424,48 +252,30 @@ function App(){
               <input type="date" value={curDate} onChange={e=>changeDate(e.target.value)} style={{padding:"7px 12px",borderRadius:"8px",border:"2px solid rgba(255,255,255,.3)",background:"rgba(255,255,255,.15)",color:"#FFF",fontSize:"14px",fontWeight:700,outline:"none"}}/>
               <span style={{color:"#F5DEB3",fontSize:"14px",fontWeight:600}}>{fmtDate(curDate)}</span>
             </div>
-            <div style={{marginTop:"6px",display:"flex",alignItems:"center"}}>
-              <span className="sync-dot" style={{background:syncing?"#FFD700":online?"#4CAF50":"#F44336"}}></span>
-              <span style={{color:"rgba(255,255,255,.7)",fontSize:"11px",fontWeight:600}}>{syncing?"Senkronize ediliyor...":online?"☁️ Firebase bağlı":"⚠ Çevrimdışı"}</span>
-            </div>
+            <div style={{marginTop:"6px",display:"flex",alignItems:"center"}}><span className="sync-dot" style={{background:syncing?"#FFD700":online?"#4CAF50":"#F44336"}}></span><span style={{color:"rgba(255,255,255,.7)",fontSize:"11px",fontWeight:600}}>{syncing?"Senkronize...":online?"☁️ Firebase bağlı":"⚠ Çevrimdışı"}</span></div>
           </div>
           <div style={{display:"flex",gap:"8px",alignItems:"center",flexWrap:"wrap"}}>
             <button onClick={expDay} style={B("#1565C0")}>📥 Excel</button>
             <button onClick={expAll} style={B("#6A1B9A")}>📊 Tümü</button>
             <button className="no-print" onClick={()=>window.print()} style={B("rgba(255,255,255,.2)")}>🖨</button>
-            <div style={{background:"rgba(255,255,255,.2)",borderRadius:"12px",padding:"6px 14px",textAlign:"right"}}>
-              <div style={{fontSize:"10px",color:"#F5DEB3",fontWeight:600}}>TOPLAM</div>
-              <div style={{fontSize:"24px",fontWeight:800,color:"#FFF"}}>{products.reduce((s,p)=>s+rTot(p),0)}</div>
-            </div>
+            <div style={{background:"rgba(255,255,255,.2)",borderRadius:"12px",padding:"6px 14px",textAlign:"right"}}><div style={{fontSize:"10px",color:"#F5DEB3",fontWeight:600}}>TOPLAM</div><div style={{fontSize:"24px",fontWeight:800,color:"#FFF"}}>{products.reduce((s,p)=>s+rTot(p),0)}</div></div>
           </div>
         </div>
       </div>
 
-      {/* TABS */}
       <div className="no-print" style={{display:"flex",gap:"4px"}}>
-        {[["liste","📋 Günlük Liste"],["gecmis","📅 Geçmiş"]].map(([k,l])=>(
-          <button key={k} onClick={()=>{setTab(k);if(k==="gecmis")fbLoadAll().then(setAllHistory);}} style={{padding:"8px 20px",border:"none",cursor:"pointer",fontSize:"13px",fontWeight:700,borderRadius:"10px 10px 0 0",background:tab===k?"#FFF":"#E8D5C0",color:tab===k?"#8B4513":"#A08060",borderBottom:tab===k?"3px solid #8B4513":"none"}}>{l}</button>
-        ))}
+        {[["liste","📋 Günlük Liste"],["gecmis","📅 Geçmiş"]].map(([k,l])=>(<button key={k} onClick={()=>{setTab(k);if(k==="gecmis")fbLoadAll().then(setAllHistory);}} style={{padding:"8px 20px",border:"none",cursor:"pointer",fontSize:"13px",fontWeight:700,borderRadius:"10px 10px 0 0",background:tab===k?"#FFF":"#E8D5C0",color:tab===k?"#8B4513":"#A08060",borderBottom:tab===k?"3px solid #8B4513":"none"}}>{l}</button>))}
       </div>
 
-      {/* GÜNLÜK LİSTE */}
       {tab==="liste"&&(<div>
         <div className="no-print" style={{display:"flex",gap:"6px",marginBottom:"10px",flexWrap:"wrap",alignItems:"center",background:"#FFF",padding:"10px",borderRadius:"0 10px 10px 10px",boxShadow:"0 2px 8px rgba(0,0,0,.05)"}}>
-          <div style={{display:"flex",gap:"3px",flexWrap:"wrap",flex:1}}>
-            {["TÜMÜ",...CATEGORIES].map(c=>(<button key={c} onClick={()=>setFilter(c)} style={{padding:"5px 11px",borderRadius:"16px",border:"none",cursor:"pointer",fontSize:"11px",fontWeight:700,background:filter===c?(c==="TÜMÜ"?"#8B4513":CAT_COLORS[c]):"#F5F0EB",color:filter===c?"#FFF":"#8B6914"}}>{c}</button>))}
-          </div>
+          <div style={{display:"flex",gap:"3px",flexWrap:"wrap",flex:1}}>{["TÜMÜ",...CATEGORIES].map(c=>(<button key={c} onClick={()=>setFilter(c)} style={{padding:"5px 11px",borderRadius:"16px",border:"none",cursor:"pointer",fontSize:"11px",fontWeight:700,background:filter===c?(c==="TÜMÜ"?"#8B4513":CAT_COLORS[c]):"#F5F0EB",color:filter===c?"#FFF":"#8B6914"}}>{c}</button>))}</div>
           <input type="text" placeholder="🔍 Ara..." value={search} onChange={e=>setSearch(e.target.value)} style={{padding:"6px 10px",borderRadius:"8px",border:"2px solid #E8D5C0",fontSize:"12px",width:"120px",outline:"none"}}/>
           <button onClick={()=>setShowAdd(!showAdd)} style={B(showAdd?"#DC3545":"#2E7D32")}>{showAdd?"✕":"＋ Yeni"}</button>
           <button onClick={startFresh} style={B("#FF8F00")}>🔄 Sıfırla</button>
           {hDates.length>0&&(<select onChange={e=>e.target.value&&copyFrom(e.target.value)} defaultValue="" style={{padding:"6px 8px",borderRadius:"8px",border:"2px solid #E8D5C0",fontSize:"11px",cursor:"pointer",color:"#6A1B9A",fontWeight:600}}><option value="">📋 Kopyala...</option>{hDates.map(d=><option key={d} value={d}>{fmtDate(d)}</option>)}</select>)}
         </div>
-
-        {showAdd&&(<div className="no-print" style={{background:"#FFF",borderRadius:"10px",padding:"12px",marginBottom:"10px",display:"flex",gap:"6px",alignItems:"center",flexWrap:"wrap",border:"2px solid #2E7D32"}}>
-          <input ref={aRef} type="text" placeholder="Ürün adı..." value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addProd()} style={{flex:1,minWidth:"150px",padding:"8px 10px",borderRadius:"8px",border:"2px solid #E0D0C0",fontSize:"13px",fontWeight:600,outline:"none"}}/>
-          <select value={newCat} onChange={e=>setNewCat(e.target.value)} style={{padding:"8px 10px",borderRadius:"8px",border:"2px solid #E0D0C0",fontSize:"12px",fontWeight:600}}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>
-          <button onClick={addProd} style={B("#2E7D32")}>✓ Ekle</button>
-        </div>)}
-
+        {showAdd&&(<div className="no-print" style={{background:"#FFF",borderRadius:"10px",padding:"12px",marginBottom:"10px",display:"flex",gap:"6px",alignItems:"center",flexWrap:"wrap",border:"2px solid #2E7D32"}}><input ref={aRef} type="text" placeholder="Ürün adı..." value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addProd()} style={{flex:1,minWidth:"150px",padding:"8px 10px",borderRadius:"8px",border:"2px solid #E0D0C0",fontSize:"13px",fontWeight:600,outline:"none"}}/><select value={newCat} onChange={e=>setNewCat(e.target.value)} style={{padding:"8px 10px",borderRadius:"8px",border:"2px solid #E0D0C0",fontSize:"12px",fontWeight:600}}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select><button onClick={addProd} style={B("#2E7D32")}>✓ Ekle</button></div>)}
         <div style={{overflowX:"auto",borderRadius:"0 0 12px 12px",boxShadow:"0 4px 20px rgba(0,0,0,.08)",background:"#FFF"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:"12px"}}>
             <thead><tr style={{background:"linear-gradient(135deg,#5D3A1A,#8B5E3C)"}}>
@@ -480,17 +290,14 @@ function App(){
                 {catH&&<tr><td colSpan={SHOPS.length+3} style={{padding:"5px 10px",background:CAT_COLORS[p.cat]+"30",fontWeight:800,fontSize:"10px",color:"#5D3A1A",letterSpacing:"1px",borderTop:"2px solid "+CAT_COLORS[p.cat]}}><span style={{display:"inline-block",width:"7px",height:"7px",borderRadius:"50%",background:CAT_COLORS[p.cat],marginRight:"6px"}}/>{p.cat}</td></tr>}
                 <tr style={{background:idx%2===0?"#FEFCF9":"#FFF"}} onMouseEnter={e=>e.currentTarget.style.background="#FFF5E6"} onMouseLeave={e=>e.currentTarget.style.background=idx%2===0?"#FEFCF9":"#FFF"}>
                   <td style={{padding:"4px 10px",fontWeight:600,color:"#4A3520",position:"sticky",left:0,background:"inherit",zIndex:1,borderRight:"2px solid #F0E6D6",fontSize:"11px"}}>{p.name}</td>
-                  {SHOPS.map(s=>{
-                    const ck=`${p.id}-${s.id}`;const v=p.vals[s.id]||0;const ed=editingCell===ck;
+                  {SHOPS.map(s=>{const ck=`${p.id}-${s.id}`;const v=p.vals[s.id]||0;const ed=editingCell===ck;
                     return <td key={s.id} style={{padding:"1px 2px",textAlign:"center",borderLeft:"1px solid #F5EDE3"}}>
                       {ed?<input ref={iRef} type="number" min="0" value={editVal} onChange={e=>setEditVal(e.target.value)} onBlur={()=>cellBlur(p.id,s.id)} onKeyDown={e=>cellKey(e,p.id,s.id)} style={{width:"44px",padding:"3px",textAlign:"center",border:"2px solid #8B4513",borderRadius:"6px",fontSize:"12px",fontWeight:700,outline:"none",background:"#FFF8F0"}}/>
                       :<div style={{display:"flex",alignItems:"center",justifyContent:"center"}}>
                         <button className="no-print" onClick={()=>inc(p.id,s.id,-1)} style={{width:"15px",height:"20px",border:"none",background:"transparent",cursor:"pointer",color:"#C0392B",fontSize:"12px",fontWeight:800,opacity:v>0?.5:.12}}>−</button>
                         <span onClick={()=>cellClick(p.id,s.id,v)} style={{cursor:"pointer",minWidth:"22px",padding:"2px",fontWeight:v>0?700:400,color:v>0?"#2C1810":"#CCC",fontSize:"12px"}}>{v>0?v:"·"}</span>
                         <button className="no-print" onClick={()=>inc(p.id,s.id,1)} style={{width:"15px",height:"20px",border:"none",background:"transparent",cursor:"pointer",color:"#27AE60",fontSize:"12px",fontWeight:800,opacity:.5}}>+</button>
-                      </div>}
-                    </td>;
-                  })}
+                      </div>}</td>;})}
                   <td style={{padding:"4px 6px",textAlign:"center",fontWeight:800,color:"#8B4513",fontSize:"13px",background:"rgba(255,215,0,.1)",borderLeft:"2px solid #E8D5C0"}}>{tot}</td>
                   <td className="no-print" style={{padding:"2px",textAlign:"center"}}><button onClick={()=>rmProd(p.id)} style={{width:"20px",height:"20px",border:"none",background:"transparent",cursor:"pointer",color:"#E74C3C",fontSize:"12px",opacity:.25}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.25}>🗑</button></td>
                 </tr>
@@ -504,62 +311,38 @@ function App(){
             </tr></tfoot>
           </table>
         </div>
-
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:"8px",marginTop:"12px"}}>
-          {CATEGORIES.map(c=>{const cp=products.filter(p=>p.cat===c);const ct=cp.reduce((s,p)=>s+rTot(p),0);
-            return <div key={c} style={{background:"#FFF",borderRadius:"10px",padding:"10px",boxShadow:"0 2px 8px rgba(0,0,0,.04)",borderLeft:`4px solid ${CAT_COLORS[c]}`}}>
-              <div style={{fontSize:"10px",fontWeight:700,color:"#999"}}>{c}</div>
-              <div style={{fontSize:"20px",fontWeight:800,color:"#4A3520"}}>{ct}</div>
-              <div style={{fontSize:"10px",color:"#AAA"}}>{cp.length} ürün</div>
-            </div>;
-          })}
+          {CATEGORIES.map(c=>{const cp=products.filter(p=>p.cat===c);const ct=cp.reduce((s,p)=>s+rTot(p),0);return <div key={c} style={{background:"#FFF",borderRadius:"10px",padding:"10px",boxShadow:"0 2px 8px rgba(0,0,0,.04)",borderLeft:`4px solid ${CAT_COLORS[c]}`}}><div style={{fontSize:"10px",fontWeight:700,color:"#999"}}>{c}</div><div style={{fontSize:"20px",fontWeight:800,color:"#4A3520"}}>{ct}</div><div style={{fontSize:"10px",color:"#AAA"}}>{cp.length} ürün</div></div>;})}
         </div>
       </div>)}
 
-      {/* GEÇMİŞ */}
       {tab==="gecmis"&&(<div style={{background:"#FFF",borderRadius:"0 12px 12px 12px",padding:"16px",boxShadow:"0 2px 12px rgba(0,0,0,.06)"}}>
         <div style={{display:"flex",gap:"8px",flexWrap:"wrap",alignItems:"center",marginBottom:"14px",paddingBottom:"14px",borderBottom:"2px solid #F0E6D6"}}>
           <span style={{fontSize:"12px",fontWeight:700,color:"#8B4513"}}>📅</span>
           <input type="date" value={hf.from} onChange={e=>setHf(f=>({...f,from:e.target.value}))} style={{padding:"5px 8px",borderRadius:"8px",border:"2px solid #E8D5C0",fontSize:"12px"}}/>
           <span style={{color:"#999"}}>—</span>
           <input type="date" value={hf.to} onChange={e=>setHf(f=>({...f,to:e.target.value}))} style={{padding:"5px 8px",borderRadius:"8px",border:"2px solid #E8D5C0",fontSize:"12px"}}/>
-          <select value={hf.shop} onChange={e=>setHf(f=>({...f,shop:e.target.value}))} style={{padding:"5px 8px",borderRadius:"8px",border:"2px solid #E8D5C0",fontSize:"12px",fontWeight:600}}>
-            <option value="TÜMÜ">Tüm Şubeler</option>
-            {SHOPS.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          <select value={hf.shop} onChange={e=>setHf(f=>({...f,shop:e.target.value}))} style={{padding:"5px 8px",borderRadius:"8px",border:"2px solid #E8D5C0",fontSize:"12px",fontWeight:600}}><option value="TÜMÜ">Tüm Şubeler</option>{SHOPS.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>
           <button onClick={expAll} style={B("#1565C0")}>📥 Tümünü Excel'e Aktar</button>
         </div>
-
         {filteredHDates.length===0?(<div style={{textAlign:"center",padding:"40px",color:"#CCC"}}><div style={{fontSize:"48px",marginBottom:"12px"}}>📭</div><div style={{fontSize:"15px",fontWeight:600}}>Kayıt bulunamadı</div></div>)
         :(<div style={{display:"flex",flexDirection:"column",gap:"10px"}}>
-          {filteredHDates.map(dk=>{
-            const summ=getDaySummary(dk);
-            const pr=allHistory[dk];
+          {filteredHDates.map(dk=>{const summ=getDaySummary(dk);const pr=allHistory[dk];
             return(<div key={dk} style={{border:"1px solid #F0E6D6",borderRadius:"12px",background:"#FEFCF9",padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:"10px"}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:"15px",fontWeight:700,color:"#4A3520"}}>{fmtDate(dk)}</div>
-                <div style={{fontSize:"12px",color:"#888",marginTop:"6px",display:"flex",gap:"6px",flexWrap:"wrap"}}>
-                  {summ.shops.map(s=>(
-                    <span key={s.id} style={{background:"#F5EDE3",padding:"3px 10px",borderRadius:"8px",fontWeight:600,color:"#5D3A1A",fontSize:"11px"}}>{s.name}: <strong style={{color:"#8B4513"}}>{s.total}</strong></span>
-                  ))}
-                </div>
-              </div>
+              <div style={{flex:1}}><div style={{fontSize:"15px",fontWeight:700,color:"#4A3520"}}>{fmtDate(dk)}</div><div style={{fontSize:"12px",color:"#888",marginTop:"6px",display:"flex",gap:"6px",flexWrap:"wrap"}}>{summ.shops.map(s=>(<span key={s.id} style={{background:"#F5EDE3",padding:"3px 10px",borderRadius:"8px",fontWeight:600,color:"#5D3A1A",fontSize:"11px"}}>{s.name}: <strong style={{color:"#8B4513"}}>{s.total}</strong></span>))}</div></div>
               <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
                 <div style={{background:"linear-gradient(135deg,#8B4513,#CD853F)",color:"#FFF",padding:"8px 16px",borderRadius:"10px",fontWeight:800,fontSize:"18px",minWidth:"65px",textAlign:"center"}}>{summ.total}</div>
                 <button onClick={()=>{changeDate(dk);setTab("liste");}} style={{padding:"6px 12px",borderRadius:"8px",border:"none",background:"#E8D5C0",cursor:"pointer",fontSize:"11px",fontWeight:700,color:"#5D3A1A"}}>Düzenle</button>
-                <button onClick={()=>{if(pr&&Array.isArray(pr)){makeStyledExcel(pr,SHOPS,fmtDate(dk),`Siparis_${dk}.xlsx`);flash("📥 İndirildi","#1565C0");}}} style={{padding:"6px 12px",borderRadius:"8px",border:"none",background:"#1565C0",cursor:"pointer",fontSize:"11px",fontWeight:700,color:"#FFF"}}>📥 Excel</button>
+                <button onClick={()=>{if(pr&&Array.isArray(pr)){makeExcel(pr,SHOPS,fmtDate(dk),"Siparis_"+dk+".xlsx");flash("📥 İndirildi","#1565C0");}}} style={{padding:"6px 12px",borderRadius:"8px",border:"none",background:"#1565C0",cursor:"pointer",fontSize:"11px",fontWeight:700,color:"#FFF"}}>📥 Excel</button>
                 <button onClick={()=>delDay(dk)} style={{padding:"6px 12px",borderRadius:"8px",border:"none",background:"#FDE8E8",cursor:"pointer",fontSize:"11px",fontWeight:700,color:"#E74C3C"}}>Sil</button>
               </div>
-            </div>);
-          })}
+            </div>);})}
         </div>)}
       </div>)}
-
       <p style={{textAlign:"center",color:"#C0A080",fontSize:"10px",marginTop:"12px"}}>☁️ Firebase · Tüm cihazlarda senkron</p>
     </div>
   );
 }
-
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
