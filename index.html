@@ -21,6 +21,227 @@ firebase.initializeApp({
   appId:"1:627772395906:web:29e684c7ecd0eeaa587f9b"
 });
 const db=firebase.database();
+
+// ===== EXCEL EXPORT FUNCTION =====
+function makeStyledExcel(products, shops, dateLabel, fileName) {
+  var wb = XLSX.utils.book_new();
+
+  // Border style
+  var bdr = {
+    top:    {style:"thin", color:{rgb:"333333"}},
+    bottom: {style:"thin", color:{rgb:"333333"}},
+    left:   {style:"thin", color:{rgb:"333333"}},
+    right:  {style:"thin", color:{rgb:"333333"}}
+  };
+  var bdrThick = {
+    top:    {style:"medium", color:{rgb:"000000"}},
+    bottom: {style:"medium", color:{rgb:"000000"}},
+    left:   {style:"medium", color:{rgb:"000000"}},
+    right:  {style:"medium", color:{rgb:"000000"}}
+  };
+
+  // Build data array
+  var data = [];
+
+  // Row 0: Title
+  var titleRow = [dateLabel];
+  for(var i=0; i<shops.length; i++) titleRow.push("");
+  titleRow.push("");
+  data.push(titleRow);
+
+  // Row 1: Empty spacer
+  data.push(Array(shops.length+2).fill(""));
+
+  // Row 2: Headers
+  var hdrRow = ["ÜRÜN ADI"];
+  shops.forEach(function(s){ hdrRow.push(s.name); });
+  hdrRow.push("TOPLAM");
+  data.push(hdrRow);
+
+  // Data rows
+  products.forEach(function(p){
+    var row = [p.name];
+    var rowSum = 0;
+    shops.forEach(function(s){
+      var v = (p.vals && p.vals[s.id]) ? p.vals[s.id] : 0;
+      rowSum += v;
+      row.push(v > 0 ? v : "");
+    });
+    row.push(rowSum > 0 ? rowSum : "");
+    data.push(row);
+  });
+
+  // Totals row
+  var totRow = ["TOPLAM"];
+  var grandTotal = 0;
+  shops.forEach(function(s){
+    var t = 0;
+    products.forEach(function(p){ t += (p.vals && p.vals[s.id]) ? p.vals[s.id] : 0; });
+    grandTotal += t;
+    totRow.push(t > 0 ? t : "");
+  });
+  totRow.push(grandTotal);
+  data.push(totRow);
+
+  // Create worksheet
+  var ws = XLSX.utils.aoa_to_sheet(data);
+
+  // Merge title row
+  ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:shops.length+1}}];
+
+  // Column widths (A4 landscape fit: ~25 + 7*10 + 8 = 103 chars width)
+  var cols = [{wch:26}];
+  shops.forEach(function(){ cols.push({wch:10}); });
+  cols.push({wch:9});
+  ws['!cols'] = cols;
+
+  // Row heights
+  var rowHeights = [{hpt:32},{hpt:6},{hpt:22}];
+  products.forEach(function(){ rowHeights.push({hpt:18}); });
+  rowHeights.push({hpt:22});
+  ws['!rows'] = rowHeights;
+
+  // Page setup: fit to 1 page, A4 landscape
+  ws['!pageSetup'] = {
+    paperSize: 9,
+    orientation: "landscape",
+    fitToWidth: 1,
+    fitToHeight: 1,
+    scale: 75
+  };
+  ws['!margins'] = {left:0.3, right:0.3, top:0.4, bottom:0.4, header:0.2, footer:0.2};
+
+  // Apply styles to every cell
+  var range = XLSX.utils.decode_range(ws['!ref']);
+  var lastRow = range.e.r;
+  var lastCol = range.e.c;
+  var headerRow = 2;
+
+  for(var R = 0; R <= lastRow; R++){
+    for(var C = 0; C <= lastCol; C++){
+      var addr = XLSX.utils.encode_cell({r:R, c:C});
+      if(!ws[addr]) ws[addr] = {v:"", t:"s"};
+      var cell = ws[addr];
+
+      if(R === 0){
+        // ===== TITLE ROW =====
+        cell.s = {
+          font: {bold:true, sz:16, color:{rgb:"8B4513"}, name:"Arial"},
+          alignment: {horizontal:"center", vertical:"center"},
+          fill: {fgColor:{rgb:"FFF8DC"}},
+          border: bdrThick
+        };
+      }
+      else if(R === 1){
+        // ===== SPACER ROW =====
+        cell.s = {border:{}};
+      }
+      else if(R === headerRow){
+        // ===== HEADER ROW =====
+        cell.s = {
+          font: {bold:true, sz:10, color:{rgb:"FFFFFF"}, name:"Arial"},
+          fill: {fgColor:{rgb:"5D3A1A"}},
+          alignment: {horizontal:"center", vertical:"center", wrapText:true},
+          border: bdrThick
+        };
+      }
+      else if(R === lastRow){
+        // ===== TOTALS ROW =====
+        cell.s = {
+          font: {bold:true, sz:11, color:{rgb:"FFFFFF"}, name:"Arial"},
+          fill: {fgColor:{rgb:"8B4513"}},
+          alignment: {horizontal:"center", vertical:"center"},
+          border: bdrThick
+        };
+      }
+      else if(C === 0){
+        // ===== PRODUCT NAME — RED BOLD =====
+        cell.s = {
+          font: {bold:true, sz:9, color:{rgb:"CC0000"}, name:"Arial"},
+          alignment: {horizontal:"left", vertical:"center"},
+          border: bdr
+        };
+      }
+      else if(C === lastCol){
+        // ===== ROW TOTAL COLUMN =====
+        cell.s = {
+          font: {bold:true, sz:10, color:{rgb:"8B4513"}, name:"Arial"},
+          fill: {fgColor:{rgb:"FFF8DC"}},
+          alignment: {horizontal:"center", vertical:"center"},
+          border: bdr
+        };
+      }
+      else {
+        // ===== NUMBER CELLS =====
+        cell.s = {
+          font: {sz:10, name:"Arial"},
+          alignment: {horizontal:"center", vertical:"center"},
+          border: bdr
+        };
+      }
+    }
+  }
+
+  XLSX.utils.book_append_sheet(wb, ws, dateLabel.slice(0,31));
+  XLSX.writeFile(wb, fileName);
+}
+
+function makeAllExcel(allHistory, shops) {
+  var dates = Object.keys(allHistory).sort();
+  if(!dates.length) return false;
+
+  var wb = XLSX.utils.book_new();
+  var bdr = {top:{style:"thin",color:{rgb:"333333"}},bottom:{style:"thin",color:{rgb:"333333"}},left:{style:"thin",color:{rgb:"333333"}},right:{style:"thin",color:{rgb:"333333"}}};
+  var bdrThick = {top:{style:"medium",color:{rgb:"000000"}},bottom:{style:"medium",color:{rgb:"000000"}},left:{style:"medium",color:{rgb:"000000"}},right:{style:"medium",color:{rgb:"000000"}}};
+
+  dates.forEach(function(dk){
+    var pr = allHistory[dk];
+    if(!pr || !Array.isArray(pr)) return;
+
+    var hdr = ["ÜRÜN ADI"];
+    shops.forEach(function(s){ hdr.push(s.name); });
+    hdr.push("TOPLAM");
+
+    var rows = pr.map(function(p){
+      var row = [p.name];
+      var t = 0;
+      shops.forEach(function(s){ var v=(p.vals&&p.vals[s.id])||0; t+=v; row.push(v>0?v:""); });
+      row.push(t>0?t:"");
+      return row;
+    });
+
+    var totRow = ["TOPLAM"];
+    var gt = 0;
+    shops.forEach(function(s){ var t=0; pr.forEach(function(p){t+=(p.vals&&p.vals[s.id])||0;}); gt+=t; totRow.push(t>0?t:""); });
+    totRow.push(gt);
+
+    var data = [hdr, ...rows, totRow];
+    var ws = XLSX.utils.aoa_to_sheet(data);
+
+    ws['!cols'] = [{wch:26}, ...shops.map(function(){return{wch:10};}), {wch:9}];
+    ws['!pageSetup'] = {paperSize:9, orientation:"landscape", fitToWidth:1, fitToHeight:1, scale:75};
+    ws['!margins'] = {left:0.3,right:0.3,top:0.4,bottom:0.4,header:0.2,footer:0.2};
+
+    var range = XLSX.utils.decode_range(ws['!ref']);
+    for(var R=0;R<=range.e.r;R++){
+      for(var C=0;C<=range.e.c;C++){
+        var addr=XLSX.utils.encode_cell({r:R,c:C});
+        if(!ws[addr])ws[addr]={v:"",t:"s"};
+        if(R===0) ws[addr].s={font:{bold:true,sz:10,color:{rgb:"FFFFFF"},name:"Arial"},fill:{fgColor:{rgb:"5D3A1A"}},alignment:{horizontal:"center",vertical:"center",wrapText:true},border:bdrThick};
+        else if(R===range.e.r) ws[addr].s={font:{bold:true,sz:11,color:{rgb:"FFFFFF"},name:"Arial"},fill:{fgColor:{rgb:"8B4513"}},alignment:{horizontal:"center",vertical:"center"},border:bdrThick};
+        else if(C===0) ws[addr].s={font:{bold:true,sz:9,color:{rgb:"CC0000"},name:"Arial"},alignment:{horizontal:"left",vertical:"center"},border:bdr};
+        else if(C===range.e.c) ws[addr].s={font:{bold:true,sz:10,color:{rgb:"8B4513"},name:"Arial"},fill:{fgColor:{rgb:"FFF8DC"}},alignment:{horizontal:"center",vertical:"center"},border:bdr};
+        else ws[addr].s={font:{sz:10,name:"Arial"},alignment:{horizontal:"center",vertical:"center"},border:bdr};
+      }
+    }
+
+    XLSX.utils.book_append_sheet(wb, ws, dk.replace(/-/g,"."));
+  });
+
+  var todayISO = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, "Siparis_Gecmis_"+todayISO+".xlsx");
+  return true;
+}
 </script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -79,64 +300,6 @@ function fbSave(dk,pr){return db.ref("days/"+dk).set(pr);}
 function fbLoad(dk){return db.ref("days/"+dk).once("value").then(s=>s.val());}
 function fbLoadAll(){return db.ref("days").once("value").then(s=>s.val()||{});}
 function fbDelete(dk){return db.ref("days/"+dk).remove();}
-
-// ===== STYLED EXCEL (xlsx-js-style) =====
-function makeExcel(products,dateLabel,fileName){
-  const bdr={top:{style:"thin",color:{rgb:"8B4513"}},bottom:{style:"thin",color:{rgb:"8B4513"}},left:{style:"thin",color:{rgb:"8B4513"}},right:{style:"thin",color:{rgb:"8B4513"}}};
-  const hdr=["ÜRÜN ADI",...SHOPS.map(s=>s.name),"TOPLAM"];
-  const rows=products.map(p=>{
-    const t=SHOPS.reduce((a,s)=>a+(p.vals[s.id]||0),0);
-    return[p.name,...SHOPS.map(s=>{const v=p.vals[s.id]||0;return v>0?v:null;}),t>0?t:null];
-  });
-  const totRow=["TOPLAM",...SHOPS.map(s=>{const t=products.reduce((a,p)=>a+(p.vals[s.id]||0),0);return t>0?t:null;}),products.reduce((a,p)=>a+SHOPS.reduce((b,s)=>b+(p.vals[s.id]||0),0),0)];
-  const titleRow=[{v:dateLabel,t:"s",s:{font:{bold:true,sz:14,color:{rgb:"8B4513"}},alignment:{horizontal:"center",vertical:"center"},border:bdr}}];
-
-  const allData=[
-    [dateLabel,...Array(SHOPS.length+1).fill("")],
-    hdr,
-    ...rows,
-    totRow
-  ];
-
-  const ws=XLSX.utils.aoa_to_sheet(allData);
-
-  // Merge title
-  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:SHOPS.length+1}}];
-  ws['!cols']=[{wch:30},...SHOPS.map(()=>({wch:14})),{wch:12}];
-
-  // Style every cell
-  const range=XLSX.utils.decode_range(ws['!ref']);
-  for(let R=range.s.r;R<=range.e.r;R++){
-    for(let C=range.s.c;C<=range.e.c;C++){
-      const addr=XLSX.utils.encode_cell({r:R,c:C});
-      if(!ws[addr]) ws[addr]={v:"",t:"s"};
-
-      if(R===0){
-        // Title row
-        ws[addr].s={font:{bold:true,sz:14,color:{rgb:"8B4513"}},alignment:{horizontal:"center",vertical:"center"},border:bdr,fill:{fgColor:{rgb:"FFF8DC"}}};
-      } else if(R===1){
-        // Header row
-        ws[addr].s={font:{bold:true,sz:11,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"5D3A1A"}},alignment:{horizontal:"center",vertical:"center"},border:bdr};
-      } else if(R===range.e.r){
-        // Total row
-        ws[addr].s={font:{bold:true,sz:12,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"8B4513"}},alignment:{horizontal:"center",vertical:"center"},border:bdr};
-      } else if(C===0){
-        // Product name — RED BOLD
-        ws[addr].s={font:{bold:true,sz:11,color:{rgb:"CC0000"}},alignment:{horizontal:"left",vertical:"center"},border:bdr};
-      } else if(C===SHOPS.length+1){
-        // Row total column
-        ws[addr].s={font:{bold:true,sz:11,color:{rgb:"8B4513"}},fill:{fgColor:{rgb:"FFF8DC"}},alignment:{horizontal:"center",vertical:"center"},border:bdr};
-      } else {
-        // Number cells
-        ws[addr].s={font:{sz:11},alignment:{horizontal:"center",vertical:"center"},border:bdr};
-      }
-    }
-  }
-
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,dateLabel.slice(0,31));
-  XLSX.writeFile(wb,fileName);
-}
 
 function App(){
   const [curDate,setCurDate]=useState(todayStr());
@@ -209,7 +372,7 @@ function App(){
     setLoading(false);
   };
 
-  const delDay=async(dk)=>{if(!confirm(`${fmtDate(dk)} silinsin mi?`))return;try{await fbDelete(dk);setAllHistory(prev=>{const n={...prev};delete n[dk];return n;});flash("🗑 Silindi","#DC3545");}catch(e){flash("⚠ Silinemedi","#DC3545");}};
+  const delDay=async(dk)=>{if(!confirm(`${fmtDate(dk)} silinsin mi?`))return;try{await fbDelete(dk);setAllHistory(prev=>{const n={...prev};delete n[dk];return n;});flash("🗑 Silindi","#DC3545");}catch(e){}};
 
   const updVal=useCallback((pid,sid,v)=>{setProducts(pr=>pr.map(p=>p.id===pid?{...p,vals:{...p.vals,[sid]:Math.max(0,parseInt(v)||0)}}:p));},[]);
   const rmProd=useCallback((id)=>{setProducts(pr=>pr.filter(p=>p.id!==id));},[]);
@@ -227,51 +390,20 @@ function App(){
   const copyFrom=(sd)=>{const src=allHistory[sd];if(src){setProducts(JSON.parse(JSON.stringify(src)));flash("📋 Kopyalandı","#6A1B9A");}};
   const startFresh=()=>{setProducts(prev=>prev.map(p=>({...p,vals:Object.fromEntries(SHOPS.map(s=>[s.id,0]))})));flash("🔄 Sıfırlandı","#FF8F00");};
 
-  const expDay=()=>{makeExcel(products,fmtDate(curDate),`Siparis_${curDate}.xlsx`);flash("📥 Excel indirildi!","#1565C0");};
-
-  const expAll=()=>{
-    const dates=Object.keys(allHistory).sort();
-    if(!dates.length){flash("⚠ Kayıt yok!","#FF8F00");return;}
-    const wb=XLSX.utils.book_new();
-    const bdr={top:{style:"thin",color:{rgb:"8B4513"}},bottom:{style:"thin",color:{rgb:"8B4513"}},left:{style:"thin",color:{rgb:"8B4513"}},right:{style:"thin",color:{rgb:"8B4513"}}};
-    dates.forEach(dk=>{
-      const pr=allHistory[dk];if(!pr||!Array.isArray(pr))return;
-      const hdr=["ÜRÜN ADI",...SHOPS.map(s=>s.name),"TOPLAM"];
-      const rows=pr.map(p=>{const t=SHOPS.reduce((a,s)=>a+(p.vals[s.id]||0),0);return[p.name,...SHOPS.map(s=>{const v=p.vals[s.id]||0;return v>0?v:null;}),t>0?t:null];});
-      const tRow=["TOPLAM",...SHOPS.map(s=>{const t=pr.reduce((a,p)=>a+(p.vals[s.id]||0),0);return t>0?t:null;}),pr.reduce((a,p)=>a+SHOPS.reduce((b,s)=>b+(p.vals[s.id]||0),0),0)];
-      const data=[hdr,...rows,tRow];
-      const ws=XLSX.utils.aoa_to_sheet(data);
-      ws['!cols']=[{wch:30},...SHOPS.map(()=>({wch:14})),{wch:12}];
-      const range=XLSX.utils.decode_range(ws['!ref']);
-      for(let R=range.s.r;R<=range.e.r;R++){
-        for(let C=range.s.c;C<=range.e.c;C++){
-          const addr=XLSX.utils.encode_cell({r:R,c:C});
-          if(!ws[addr])ws[addr]={v:"",t:"s"};
-          if(R===0)ws[addr].s={font:{bold:true,sz:11,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"5D3A1A"}},alignment:{horizontal:"center",vertical:"center"},border:bdr};
-          else if(R===range.e.r)ws[addr].s={font:{bold:true,sz:12,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"8B4513"}},alignment:{horizontal:"center",vertical:"center"},border:bdr};
-          else if(C===0)ws[addr].s={font:{bold:true,sz:11,color:{rgb:"CC0000"}},alignment:{horizontal:"left",vertical:"center"},border:bdr};
-          else if(C===SHOPS.length+1)ws[addr].s={font:{bold:true,sz:11,color:{rgb:"8B4513"}},fill:{fgColor:{rgb:"FFF8DC"}},alignment:{horizontal:"center",vertical:"center"},border:bdr};
-          else ws[addr].s={font:{sz:11},alignment:{horizontal:"center",vertical:"center"},border:bdr};
-        }
-      }
-      XLSX.utils.book_append_sheet(wb,ws,dk.replace(/-/g,"."));
-    });
-    XLSX.writeFile(wb,`Siparis_Gecmis_${todayStr()}.xlsx`);
-    flash("📥 Aktarıldı!","#1565C0");
-  };
+  // Excel exports using global functions
+  const expDay=()=>{makeStyledExcel(products,SHOPS,fmtDate(curDate),`Siparis_${curDate}.xlsx`);flash("📥 Excel indirildi!","#1565C0");};
+  const expAll=()=>{if(makeAllExcel(allHistory,SHOPS))flash("📥 Aktarıldı!","#1565C0");else flash("⚠ Kayıt yok!","#FF8F00");};
 
   const hDates=Object.keys(allHistory).sort().reverse();
   const filteredHDates=hDates.filter(dk=>{
-    if(hf.from&&dk<hf.from)return false;
-    if(hf.to&&dk>hf.to)return false;
+    if(hf.from&&dk<hf.from)return false;if(hf.to&&dk>hf.to)return false;
     if(hf.shop!=="TÜMÜ"){const pr=allHistory[dk];if(!pr||!Array.isArray(pr))return false;if(pr.reduce((a,p)=>a+(p.vals[hf.shop]||0),0)===0)return false;}
     return true;
   });
-
   const getDaySummary=(dk)=>{
     const pr=allHistory[dk];if(!pr||!Array.isArray(pr))return{shops:[],total:0};
-    const shopTotals=SHOPS.map(s=>({...s,total:pr.reduce((a,p)=>a+(p.vals[s.id]||0),0)})).filter(s=>s.total>0);
-    return{shops:shopTotals,total:shopTotals.reduce((a,s)=>a+s.total,0)};
+    const st=SHOPS.map(s=>({...s,total:pr.reduce((a,p)=>a+(p.vals[s.id]||0),0)})).filter(s=>s.total>0);
+    return{shops:st,total:st.reduce((a,s)=>a+s.total,0)};
   };
 
   const B=(bg)=>({padding:"9px 16px",borderRadius:"10px",border:"none",cursor:"pointer",background:bg,color:"#FFF",fontSize:"13px",fontWeight:700,boxShadow:"0 2px 8px rgba(0,0,0,.15)",whiteSpace:"nowrap"});
@@ -316,7 +448,7 @@ function App(){
         ))}
       </div>
 
-      {/* ===== GÜNLÜK LİSTE ===== */}
+      {/* GÜNLÜK LİSTE */}
       {tab==="liste"&&(<div>
         <div className="no-print" style={{display:"flex",gap:"6px",marginBottom:"10px",flexWrap:"wrap",alignItems:"center",background:"#FFF",padding:"10px",borderRadius:"0 10px 10px 10px",boxShadow:"0 2px 8px rgba(0,0,0,.05)"}}>
           <div style={{display:"flex",gap:"3px",flexWrap:"wrap",flex:1}}>
@@ -325,10 +457,7 @@ function App(){
           <input type="text" placeholder="🔍 Ara..." value={search} onChange={e=>setSearch(e.target.value)} style={{padding:"6px 10px",borderRadius:"8px",border:"2px solid #E8D5C0",fontSize:"12px",width:"120px",outline:"none"}}/>
           <button onClick={()=>setShowAdd(!showAdd)} style={B(showAdd?"#DC3545":"#2E7D32")}>{showAdd?"✕":"＋ Yeni"}</button>
           <button onClick={startFresh} style={B("#FF8F00")}>🔄 Sıfırla</button>
-          {hDates.length>0&&(<select onChange={e=>e.target.value&&copyFrom(e.target.value)} defaultValue="" style={{padding:"6px 8px",borderRadius:"8px",border:"2px solid #E8D5C0",fontSize:"11px",cursor:"pointer",color:"#6A1B9A",fontWeight:600}}>
-            <option value="">📋 Kopyala...</option>
-            {hDates.map(d=><option key={d} value={d}>{fmtDate(d)}</option>)}
-          </select>)}
+          {hDates.length>0&&(<select onChange={e=>e.target.value&&copyFrom(e.target.value)} defaultValue="" style={{padding:"6px 8px",borderRadius:"8px",border:"2px solid #E8D5C0",fontSize:"11px",cursor:"pointer",color:"#6A1B9A",fontWeight:600}}><option value="">📋 Kopyala...</option>{hDates.map(d=><option key={d} value={d}>{fmtDate(d)}</option>)}</select>)}
         </div>
 
         {showAdd&&(<div className="no-print" style={{background:"#FFF",borderRadius:"10px",padding:"12px",marginBottom:"10px",display:"flex",gap:"6px",alignItems:"center",flexWrap:"wrap",border:"2px solid #2E7D32"}}>
@@ -387,7 +516,7 @@ function App(){
         </div>
       </div>)}
 
-      {/* ===== GEÇMİŞ — SADECE LİSTE ===== */}
+      {/* GEÇMİŞ */}
       {tab==="gecmis"&&(<div style={{background:"#FFF",borderRadius:"0 12px 12px 12px",padding:"16px",boxShadow:"0 2px 12px rgba(0,0,0,.06)"}}>
         <div style={{display:"flex",gap:"8px",flexWrap:"wrap",alignItems:"center",marginBottom:"14px",paddingBottom:"14px",borderBottom:"2px solid #F0E6D6"}}>
           <span style={{fontSize:"12px",fontWeight:700,color:"#8B4513"}}>📅</span>
@@ -406,29 +535,27 @@ function App(){
           {filteredHDates.map(dk=>{
             const summ=getDaySummary(dk);
             const pr=allHistory[dk];
-            return(<div key={dk} style={{border:"1px solid #F0E6D6",borderRadius:"12px",overflow:"hidden",background:"#FEFCF9"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 16px",flexWrap:"wrap",gap:"10px"}}>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:"15px",fontWeight:700,color:"#4A3520"}}>{fmtDate(dk)}</div>
-                  <div style={{fontSize:"12px",color:"#888",marginTop:"6px",display:"flex",gap:"6px",flexWrap:"wrap"}}>
-                    {summ.shops.map(s=>(
-                      <span key={s.id} style={{background:"#F5EDE3",padding:"3px 10px",borderRadius:"8px",fontWeight:600,color:"#5D3A1A",fontSize:"11px"}}>{s.name}: <strong style={{color:"#8B4513"}}>{s.total}</strong></span>
-                    ))}
-                  </div>
+            return(<div key={dk} style={{border:"1px solid #F0E6D6",borderRadius:"12px",background:"#FEFCF9",padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:"10px"}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:"15px",fontWeight:700,color:"#4A3520"}}>{fmtDate(dk)}</div>
+                <div style={{fontSize:"12px",color:"#888",marginTop:"6px",display:"flex",gap:"6px",flexWrap:"wrap"}}>
+                  {summ.shops.map(s=>(
+                    <span key={s.id} style={{background:"#F5EDE3",padding:"3px 10px",borderRadius:"8px",fontWeight:600,color:"#5D3A1A",fontSize:"11px"}}>{s.name}: <strong style={{color:"#8B4513"}}>{s.total}</strong></span>
+                  ))}
                 </div>
-                <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
-                  <div style={{background:"linear-gradient(135deg,#8B4513,#CD853F)",color:"#FFF",padding:"8px 16px",borderRadius:"10px",fontWeight:800,fontSize:"18px",minWidth:"65px",textAlign:"center"}}>{summ.total}</div>
-                  <button onClick={()=>{changeDate(dk);setTab("liste");}} style={{padding:"6px 12px",borderRadius:"8px",border:"none",background:"#E8D5C0",cursor:"pointer",fontSize:"11px",fontWeight:700,color:"#5D3A1A"}}>Düzenle</button>
-                  <button onClick={()=>{if(pr&&Array.isArray(pr)){makeExcel(pr,fmtDate(dk),`Siparis_${dk}.xlsx`);flash("📥 İndirildi","#1565C0");}}} style={{padding:"6px 12px",borderRadius:"8px",border:"none",background:"#1565C0",cursor:"pointer",fontSize:"11px",fontWeight:700,color:"#FFF"}}>📥 Excel</button>
-                  <button onClick={()=>delDay(dk)} style={{padding:"6px 12px",borderRadius:"8px",border:"none",background:"#FDE8E8",cursor:"pointer",fontSize:"11px",fontWeight:700,color:"#E74C3C"}}>Sil</button>
-                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                <div style={{background:"linear-gradient(135deg,#8B4513,#CD853F)",color:"#FFF",padding:"8px 16px",borderRadius:"10px",fontWeight:800,fontSize:"18px",minWidth:"65px",textAlign:"center"}}>{summ.total}</div>
+                <button onClick={()=>{changeDate(dk);setTab("liste");}} style={{padding:"6px 12px",borderRadius:"8px",border:"none",background:"#E8D5C0",cursor:"pointer",fontSize:"11px",fontWeight:700,color:"#5D3A1A"}}>Düzenle</button>
+                <button onClick={()=>{if(pr&&Array.isArray(pr)){makeStyledExcel(pr,SHOPS,fmtDate(dk),`Siparis_${dk}.xlsx`);flash("📥 İndirildi","#1565C0");}}} style={{padding:"6px 12px",borderRadius:"8px",border:"none",background:"#1565C0",cursor:"pointer",fontSize:"11px",fontWeight:700,color:"#FFF"}}>📥 Excel</button>
+                <button onClick={()=>delDay(dk)} style={{padding:"6px 12px",borderRadius:"8px",border:"none",background:"#FDE8E8",cursor:"pointer",fontSize:"11px",fontWeight:700,color:"#E74C3C"}}>Sil</button>
               </div>
             </div>);
           })}
         </div>)}
       </div>)}
 
-      <p style={{textAlign:"center",color:"#C0A080",fontSize:"10px",marginTop:"12px"}}>☁️ Firebase senkron · Tüm cihazlarda otomatik güncellenir</p>
+      <p style={{textAlign:"center",color:"#C0A080",fontSize:"10px",marginTop:"12px"}}>☁️ Firebase · Tüm cihazlarda senkron</p>
     </div>
   );
 }
