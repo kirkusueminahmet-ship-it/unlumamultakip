@@ -35,6 +35,7 @@ function styleSheet(ws, shops, numProducts) {
   ws['!pageSetup'] = {paperSize:9, orientation:"landscape", fitToWidth:1, fitToHeight:1};
   ws['!margins'] = {left:0.2, right:0.2, top:0.3, bottom:0.3, header:0.1, footer:0.1};
   // Styles
+  var bdr = {top:{style:"thin",color:{rgb:"000000"}},bottom:{style:"thin",color:{rgb:"000000"}},left:{style:"thin",color:{rgb:"000000"}},right:{style:"thin",color:{rgb:"000000"}}};
   var range = XLSX.utils.decode_range(ws['!ref']);
   var lastC = range.e.c;
   for(var R=0;R<=range.e.r;R++){
@@ -42,26 +43,19 @@ function styleSheet(ws, shops, numProducts) {
       var addr = XLSX.utils.encode_cell({r:R,c:C});
       if(!ws[addr]) ws[addr]={v:"",t:"s"};
       if(R===0){
-        // Row 1: Title — 16pt bold kahverengi, sarımsı zemin, ortalı
-        ws[addr].s={font:{bold:true,sz:16,color:{rgb:"8B4513"}},fill:{fgColor:{rgb:"FFF8DC"}},alignment:{horizontal:"center",vertical:"center"}};
+        ws[addr].s={font:{bold:true,sz:16,color:{rgb:"8B4513"}},fill:{fgColor:{rgb:"FFF8DC"}},alignment:{horizontal:"center",vertical:"center"},border:bdr};
       } else if(R===1){
-        // Row 2: Boş spacer
         ws[addr].s={};
       } else if(R===2){
-        // Row 3: Header — 10pt bold beyaz, koyu kahve zemin, ortalı
-        ws[addr].s={font:{bold:true,sz:10,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"5D3A1A"}},alignment:{horizontal:"center",vertical:"center",wrapText:true}};
+        ws[addr].s={font:{bold:true,sz:10,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"5D3A1A"}},alignment:{horizontal:"center",vertical:"center",wrapText:true},border:bdr};
       } else if(R===range.e.r){
-        // Son satır: TOPLAM — 11pt bold beyaz, kahve zemin, ortalı
-        ws[addr].s={font:{bold:true,sz:11,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"8B4513"}},alignment:{horizontal:"center",vertical:"center"}};
+        ws[addr].s={font:{bold:true,sz:11,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"8B4513"}},alignment:{horizontal:"center",vertical:"center"},border:bdr};
       } else if(C===0){
-        // Ürün adı — 9pt bold kırmızı, sola yaslı
-        ws[addr].s={font:{bold:true,sz:9,color:{rgb:"CC0000"}},alignment:{horizontal:"left",vertical:"center"}};
+        ws[addr].s={font:{bold:true,sz:9,color:{rgb:"CC0000"}},alignment:{horizontal:"left",vertical:"center"},border:bdr};
       } else if(C===lastC){
-        // Satır toplamı — 10pt bold kahve, sarımsı zemin, ortalı
-        ws[addr].s={font:{bold:true,sz:10,color:{rgb:"8B4513"}},fill:{fgColor:{rgb:"FFF8DC"}},alignment:{horizontal:"center",vertical:"center"}};
+        ws[addr].s={font:{bold:true,sz:10,color:{rgb:"8B4513"}},fill:{fgColor:{rgb:"FFF8DC"}},alignment:{horizontal:"center",vertical:"center"},border:bdr};
       } else {
-        // Rakamlar — 10pt normal, ortalı
-        ws[addr].s={font:{sz:10},alignment:{horizontal:"center",vertical:"center"}};
+        ws[addr].s={font:{sz:10},alignment:{horizontal:"center",vertical:"center"},border:bdr};
       }
     }
   }
