@@ -22,103 +22,78 @@ firebase.initializeApp({
 });
 var db=firebase.database();
 
-function makeExcel(products, shops, dateLabel, fileName) {
-  var wb = XLSX.utils.book_new();
-  var bdr = {top:{style:"thin",color:{rgb:"666666"}},bottom:{style:"thin",color:{rgb:"666666"}},left:{style:"thin",color:{rgb:"666666"}},right:{style:"thin",color:{rgb:"666666"}}};
-  var bdrBold = {top:{style:"medium",color:{rgb:"000000"}},bottom:{style:"medium",color:{rgb:"000000"}},left:{style:"medium",color:{rgb:"000000"}},right:{style:"medium",color:{rgb:"000000"}}};
-
-  var data = [];
-  // Header
-  var hdr = ["ÜRÜN"];
-  shops.forEach(function(s){ hdr.push(s.name); });
-  hdr.push("TPLM");
-  data.push(hdr);
-
-  // Products
-  products.forEach(function(p){
-    var row = [p.name];
-    var t = 0;
-    shops.forEach(function(s){ var v=(p.vals&&p.vals[s.id])||0; t+=v; row.push(v>0?v:""); });
-    row.push(t>0?t:"");
-    data.push(row);
-  });
-
-  // Totals
-  var totRow = ["TOPLAM"];
-  var gt = 0;
-  shops.forEach(function(s){ var t=0; products.forEach(function(p){t+=(p.vals&&p.vals[s.id])||0;}); gt+=t; totRow.push(t>0?t:""); });
-  totRow.push(gt);
-  data.push(totRow);
-
-  var ws = XLSX.utils.aoa_to_sheet(data);
-
-  // A4 landscape = ~29.7cm wide. With 0.5cm margins = ~28.7cm usable
-  // At 8pt font, 1 char ≈ 2mm. So ~143 chars fit.
-  // We use: 24 + 7×8 + 7 = 87 chars. Plenty of room.
-  ws['!cols'] = [{wch:24}];
-  for(var i=0;i<shops.length;i++) ws['!cols'].push({wch:8});
-  ws['!cols'].push({wch:7});
-
-  // Row heights - compact
-  ws['!rows'] = [{hpt:20}]; // header
-  for(var j=0;j<products.length;j++) ws['!rows'].push({hpt:14});
-  ws['!rows'].push({hpt:20}); // total
-
-  // Print settings
+function styleSheet(ws, shops, numProducts) {
+  // Column widths: A=26.85, rest=7.71 (exact match)
+  ws['!cols'] = [{wch:26.85}];
+  for(var i=0;i<shops.length;i++) ws['!cols'].push({wch:7.71});
+  ws['!cols'].push({wch:7.71});
+  // Row heights: title=20.25, spacer=6, header=21.95, data=18, totals=21.95
+  ws['!rows'] = [{hpt:20.25},{hpt:6},{hpt:21.95}];
+  for(var j=0;j<numProducts;j++) ws['!rows'].push({hpt:18});
+  ws['!rows'].push({hpt:21.95});
+  // Print: A4 landscape fit
   ws['!pageSetup'] = {paperSize:9, orientation:"landscape", fitToWidth:1, fitToHeight:1};
   ws['!margins'] = {left:0.2, right:0.2, top:0.3, bottom:0.3, header:0.1, footer:0.1};
-  // Header/footer with date
-  ws['!headerFooter'] = {oddHeader:"&C&B" + dateLabel};
-
   // Styles
   var range = XLSX.utils.decode_range(ws['!ref']);
+  var lastC = range.e.c;
   for(var R=0;R<=range.e.r;R++){
-    for(var C=0;C<=range.e.c;C++){
+    for(var C=0;C<=lastC;C++){
       var addr = XLSX.utils.encode_cell({r:R,c:C});
       if(!ws[addr]) ws[addr]={v:"",t:"s"};
-
       if(R===0){
-        // HEADER
-        ws[addr].s = {
-          font:{bold:true, sz:8, color:{rgb:"FFFFFF"}, name:"Arial"},
-          fill:{fgColor:{rgb:"5D3A1A"}},
-          alignment:{horizontal:"center", vertical:"center", wrapText:true},
-          border:bdrBold
-        };
+        // Row 1: Title — 16pt bold kahverengi, sarımsı zemin, ortalı
+        ws[addr].s={font:{bold:true,sz:16,color:{rgb:"8B4513"}},fill:{fgColor:{rgb:"FFF8DC"}},alignment:{horizontal:"center",vertical:"center"}};
+      } else if(R===1){
+        // Row 2: Boş spacer
+        ws[addr].s={};
+      } else if(R===2){
+        // Row 3: Header — 10pt bold beyaz, koyu kahve zemin, ortalı
+        ws[addr].s={font:{bold:true,sz:10,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"5D3A1A"}},alignment:{horizontal:"center",vertical:"center",wrapText:true}};
       } else if(R===range.e.r){
-        // TOPLAM ROW
-        ws[addr].s = {
-          font:{bold:true, sz:9, color:{rgb:"FFFFFF"}, name:"Arial"},
-          fill:{fgColor:{rgb:"8B4513"}},
-          alignment:{horizontal:"center", vertical:"center"},
-          border:bdrBold
-        };
+        // Son satır: TOPLAM — 11pt bold beyaz, kahve zemin, ortalı
+        ws[addr].s={font:{bold:true,sz:11,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"8B4513"}},alignment:{horizontal:"center",vertical:"center"}};
       } else if(C===0){
-        // ÜRÜN ADI — KIRMIZI KALIN
-        ws[addr].s = {
-          font:{bold:true, sz:8, color:{rgb:"CC0000"}, name:"Arial"},
-          alignment:{horizontal:"left", vertical:"center"},
-          border:bdr
-        };
-      } else if(C===range.e.c){
-        // SATIR TOPLAMI
-        ws[addr].s = {
-          font:{bold:true, sz:8, color:{rgb:"8B4513"}, name:"Arial"},
-          fill:{fgColor:{rgb:"FFF8DC"}},
-          alignment:{horizontal:"center", vertical:"center"},
-          border:bdr
-        };
+        // Ürün adı — 9pt bold kırmızı, sola yaslı
+        ws[addr].s={font:{bold:true,sz:9,color:{rgb:"CC0000"}},alignment:{horizontal:"left",vertical:"center"}};
+      } else if(C===lastC){
+        // Satır toplamı — 10pt bold kahve, sarımsı zemin, ortalı
+        ws[addr].s={font:{bold:true,sz:10,color:{rgb:"8B4513"}},fill:{fgColor:{rgb:"FFF8DC"}},alignment:{horizontal:"center",vertical:"center"}};
       } else {
-        // RAKAMLAR
-        ws[addr].s = {
-          font:{sz:8, name:"Arial"},
-          alignment:{horizontal:"center", vertical:"center"},
-          border:bdr
-        };
+        // Rakamlar — 10pt normal, ortalı
+        ws[addr].s={font:{sz:10},alignment:{horizontal:"center",vertical:"center"}};
       }
     }
   }
+}
 
+function makeExcel(products, shops, dateLabel, fileName) {
+  var wb = XLSX.utils.book_new();
+  var data = [];
+  // Row 1: Title (merged)
+  var titleRow = [dateLabel]; for(var i=0;i<shops.length;i++) titleRow.push(""); titleRow.push("");
+  data.push(titleRow);
+  // Row 2: Spacer
+  data.push(Array(shops.length+2).fill(""));
+  // Row 3: Header
+  var hdr = ["ÜRÜN ADI"]; shops.forEach(function(s){hdr.push(s.name);}); hdr.push("TOPLAM");
+  data.push(hdr);
+  // Data rows
+  products.forEach(function(p){
+    var row=[p.name]; var t=0;
+    shops.forEach(function(s){var v=(p.vals&&p.vals[s.id])||0;t+=v;row.push(v>0?String(v):"");});
+    row.push(t>0?String(t):"");
+    data.push(row);
+  });
+  // Totals row
+  var totRow=["TOPLAM"]; var gt=0;
+  shops.forEach(function(s){var t=0;products.forEach(function(p){t+=(p.vals&&p.vals[s.id])||0;});gt+=t;totRow.push(t>0?String(t):"");});
+  totRow.push(String(gt));
+  data.push(totRow);
+
+  var ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:shops.length+1}}];
+  styleSheet(ws, shops, products.length);
   XLSX.utils.book_append_sheet(wb, ws, dateLabel.slice(0,31));
   XLSX.writeFile(wb, fileName);
 }
@@ -127,32 +102,28 @@ function makeAllExcel(allHistory, shops) {
   var dates = Object.keys(allHistory).sort();
   if(!dates.length) return false;
   var wb = XLSX.utils.book_new();
-  var bdr = {top:{style:"thin",color:{rgb:"666666"}},bottom:{style:"thin",color:{rgb:"666666"}},left:{style:"thin",color:{rgb:"666666"}},right:{style:"thin",color:{rgb:"666666"}}};
-  var bdrBold = {top:{style:"medium",color:{rgb:"000000"}},bottom:{style:"medium",color:{rgb:"000000"}},left:{style:"medium",color:{rgb:"000000"}},right:{style:"medium",color:{rgb:"000000"}}};
-
   dates.forEach(function(dk){
     var pr = allHistory[dk]; if(!pr||!Array.isArray(pr)) return;
-    var hdr=["ÜRÜN"]; shops.forEach(function(s){hdr.push(s.name);}); hdr.push("TPLM");
-    var rows=pr.map(function(p){var row=[p.name];var t=0;shops.forEach(function(s){var v=(p.vals&&p.vals[s.id])||0;t+=v;row.push(v>0?v:"");});row.push(t>0?t:"");return row;});
-    var totRow=["TOPLAM"];var gt=0;shops.forEach(function(s){var t=0;pr.forEach(function(p){t+=(p.vals&&p.vals[s.id])||0;});gt+=t;totRow.push(t>0?t:"");});totRow.push(gt);
-    var data=[hdr,...rows,totRow];
+    var data = [];
+    var dl = (function(ds){var d=new Date(ds+"T00:00:00");var M=["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];var D=["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];return d.getDate()+" "+M[d.getMonth()]+" "+d.getFullYear()+" "+D[d.getDay()];})(dk);
+    var titleRow=[dl]; for(var i=0;i<shops.length;i++) titleRow.push(""); titleRow.push("");
+    data.push(titleRow);
+    data.push(Array(shops.length+2).fill(""));
+    var hdr=["ÜRÜN ADI"]; shops.forEach(function(s){hdr.push(s.name);}); hdr.push("TOPLAM");
+    data.push(hdr);
+    pr.forEach(function(p){
+      var row=[p.name];var t=0;
+      shops.forEach(function(s){var v=(p.vals&&p.vals[s.id])||0;t+=v;row.push(v>0?String(v):"");});
+      row.push(t>0?String(t):"");
+      data.push(row);
+    });
+    var totRow=["TOPLAM"];var gt=0;
+    shops.forEach(function(s){var t=0;pr.forEach(function(p){t+=(p.vals&&p.vals[s.id])||0;});gt+=t;totRow.push(t>0?String(t):"");});
+    totRow.push(String(gt));
+    data.push(totRow);
     var ws=XLSX.utils.aoa_to_sheet(data);
-    ws['!cols']=[{wch:24}]; for(var i=0;i<shops.length;i++) ws['!cols'].push({wch:8}); ws['!cols'].push({wch:7});
-    ws['!rows']=[{hpt:20}]; for(var j=0;j<pr.length;j++) ws['!rows'].push({hpt:14}); ws['!rows'].push({hpt:20});
-    ws['!pageSetup']={paperSize:9,orientation:"landscape",fitToWidth:1,fitToHeight:1};
-    ws['!margins']={left:0.2,right:0.2,top:0.3,bottom:0.3,header:0.1,footer:0.1};
-    var range=XLSX.utils.decode_range(ws['!ref']);
-    for(var R=0;R<=range.e.r;R++){
-      for(var C=0;C<=range.e.c;C++){
-        var addr=XLSX.utils.encode_cell({r:R,c:C});
-        if(!ws[addr])ws[addr]={v:"",t:"s"};
-        if(R===0)ws[addr].s={font:{bold:true,sz:8,color:{rgb:"FFFFFF"},name:"Arial"},fill:{fgColor:{rgb:"5D3A1A"}},alignment:{horizontal:"center",vertical:"center",wrapText:true},border:bdrBold};
-        else if(R===range.e.r)ws[addr].s={font:{bold:true,sz:9,color:{rgb:"FFFFFF"},name:"Arial"},fill:{fgColor:{rgb:"8B4513"}},alignment:{horizontal:"center",vertical:"center"},border:bdrBold};
-        else if(C===0)ws[addr].s={font:{bold:true,sz:8,color:{rgb:"CC0000"},name:"Arial"},alignment:{horizontal:"left",vertical:"center"},border:bdr};
-        else if(C===range.e.c)ws[addr].s={font:{bold:true,sz:8,color:{rgb:"8B4513"},name:"Arial"},fill:{fgColor:{rgb:"FFF8DC"}},alignment:{horizontal:"center",vertical:"center"},border:bdr};
-        else ws[addr].s={font:{sz:8,name:"Arial"},alignment:{horizontal:"center",vertical:"center"},border:bdr};
-      }
-    }
+    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:shops.length+1}}];
+    styleSheet(ws, shops, pr.length);
     XLSX.utils.book_append_sheet(wb,ws,dk.replace(/-/g,"."));
   });
   XLSX.writeFile(wb,"Siparis_Gecmis_"+new Date().toISOString().slice(0,10)+".xlsx");
