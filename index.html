@@ -267,7 +267,7 @@ function App(){
         </div>}
         <div className="actions">
           <button className="btn btn-main" onClick={()=>openDay(td())}>{todayExists?"Bugünü Düzenle":"Bugünü Oluştur"}</button>
-          <button className="btn btn-outline" onClick={()=>{const d=prompt("Tarih girin (YYYY-AA-GG):",td());if(d&&/^\d{4}-\d{2}-\d{2}$/.test(d))openDay(d)}}>Başka Gün Aç</button>
+          <span style={{position:"relative",display:"inline-block"}}><button className="btn btn-outline" onClick={()=>document.getElementById("datepick").showPicker()}>Başka Gün Aç</button><input id="datepick" type="date" style={{position:"absolute",bottom:0,left:0,width:1,height:1,opacity:0,pointerEvents:"none"}} onChange={e=>{if(e.target.value)openDay(e.target.value)}}/></span>
           <button className="btn btn-outline" onClick={()=>{if(makeAllExcel(hist,SH))flash("Aktarıldı","var(--accent)");else flash("Kayıt yok","#f59e0b")}}>📊 Tüm Geçmişi Excel</button>
         </div>
       </div>
@@ -353,6 +353,10 @@ function App(){
             <td className="no-print"></td>
           </tr></tfoot>
         </table>
+      </div>
+      <div style={{padding:"16px 20px",display:"flex",justifyContent:"center",gap:12}} className="no-print">
+        <button className="btn btn-main" style={{padding:"12px 40px",fontSize:15}} onClick={async()=>{setSyncing(true);try{sk.current=true;await fbS(cur,prods);setHist(p=>({...p,[cur]:prods}));flash("Kaydedildi!","var(--green)")}catch(e){flash("Hata!","#dc2626")}setSyncing(false)}}>💾 Kaydet</button>
+        <button className="btn btn-outline" onClick={goHome}>← Ana Sayfaya Dön</button>
       </div>
     </>}
   </div>);
