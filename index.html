@@ -68,7 +68,7 @@ button{font-family:inherit;cursor:pointer}
 .section-title{font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
 
 .day-list{display:flex;flex-direction:column;gap:8px}
-.day-row{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--card);border-radius:10px;border:1px solid var(--border);transition:border-color .15s;flex-wrap:wrap;gap:8px}
+.day-row{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--card);border-radius:10px;border:1px solid var(--border);transition:border-color .15s;flex-wrap:wrap;gap:8px;cursor:pointer}
 .day-row:hover{border-color:#c5bfb5}
 .day-row .info{flex:1}
 .day-row .d-date{font-weight:700;font-size:14px}
@@ -258,7 +258,7 @@ function App(){
     {/* ════════ HOME ════════ */}
     {page==="home"&&<div className="home">
       {/* Today Card */}
-      <div className="today-card">
+      <div className="today-card" style={{cursor:"pointer"}} onDoubleClick={()=>openDay(td())}>
         <div className="date">{fmt(td())}</div>
         <div className="sub">{todayExists?"Bugünün kaydı mevcut":"Bugün için henüz kayıt yok"}</div>
         {todayExists&&<div className="stats">
@@ -285,7 +285,7 @@ function App(){
       {fhDates.length===0?<div className="empty">Henüz kayıt yok. Bugünü oluşturarak başla!</div>
       :<div className="day-list">{fhDates.map(dk=>{
         const sm=dSum(hist,dk);const pr=hist[dk];
-        return<div key={dk} className="day-row">
+        return<div key={dk} className="day-row" onDoubleClick={()=>openDay(dk)}>
           <div className="info">
             <div className="d-date">{fmt(dk)}</div>
             <div className="d-shops">{sm.shops.map(s=><span key={s.id} className="d-tag">{s.name}: <b>{s.total}</b></span>)}</div>
