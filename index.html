@@ -188,7 +188,7 @@ function App(){
     // New day — show modal
     const allDates=Object.keys(hist).sort();
     if(allDates.length>0){
-      setModal({date:dk,sources:allDates.slice(-5).reverse()});
+      setModal({date:dk,sources:allDates.reverse()});
       setLoading(false);
     } else {
       setProds(bFirst());attach(dk);setPage("editor");setLoading(false);
