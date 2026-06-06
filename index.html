@@ -134,7 +134,7 @@ tfoot td:first-child{background:#292524!important;color:#fef3c7;font-family:'Out
 <div id="root"></div>
 <script type="text/babel">
 const {useState,useCallback,useRef,useEffect}=React;
-const SH=[{id:"koc",name:"KOÇ ŞUBE"},{id:"merol",name:"MEROL"},{id:"inc",name:"İNC. ŞUBE"},{id:"eko",name:"EKO MİNİ"},{id:"seckin",name:"SEÇKİN BÜFE"},{id:"ogrt",name:"ÖĞRT. EVİ"},{id:"buyuk",name:"BÜYÜK DERE"}];
+const DEFAULT_SH=[{id:"koc",name:"KOÇ ŞUBE"},{id:"merol",name:"MEROL"},{id:"inc",name:"İNC. ŞUBE"},{id:"eko",name:"EKO MİNİ"},{id:"seckin",name:"SEÇKİN BÜFE"},{id:"ogrt",name:"ÖĞRT. EVİ"},{id:"buyuk",name:"BÜYÜK DERE"}];
 const TPL=[{id:1,name:"SÜTLÜ SİMİT",cat:"SİMİT"},{id:2,name:"ÇITIR SİMİT",cat:"SİMİT"},{id:3,name:"YAĞLI SİMİT",cat:"SİMİT"},{id:4,name:"UZUN SMT ÇİKOLATA",cat:"SİMİT"},{id:5,name:"UZUN SMT KAŞARLI",cat:"SİMİT"},{id:6,name:"KUMRU",cat:"SİMİT"},{id:7,name:"PUAÇA PEYNİRLİ",cat:"AÇMA"},{id:8,name:"UZUN AÇMA PEYNİRLİ",cat:"AÇMA"},{id:9,name:"UZUN AÇMA PATATESLİ",cat:"AÇMA"},{id:10,name:"UZUN AÇMA KAŞARLI",cat:"AÇMA"},{id:11,name:"UZUN AÇMA ÇİKOLATALI",cat:"AÇMA"},{id:12,name:"UZUN AÇMA ZEYTİNLİ",cat:"AÇMA"},{id:13,name:"UZUN AÇMA TAHİNLİ",cat:"AÇMA"},{id:14,name:"UZUN AÇMA SOSİSİLİ",cat:"AÇMA"},{id:15,name:"AÇMA SADE",cat:"AÇMA"},{id:16,name:"AÇMA ÇİKOLATALI",cat:"AÇMA"},{id:17,name:"AÇMA CEVİZLİ",cat:"AÇMA"},{id:18,name:"AÇMA ZEYTİNLİ",cat:"AÇMA"},{id:19,name:"KARAKÖY PEYNİRLİ",cat:"KARAKÖY"},{id:20,name:"KARAKÖY PATATESLİ",cat:"KARAKÖY"},{id:21,name:"KARAKÖY KAŞARLI",cat:"KARAKÖY"},{id:22,name:"KARAKÖY ÇİKOLATALI",cat:"KARAKÖY"},{id:23,name:"KARAKÖY ZEYTİNLİ",cat:"KARAKÖY"},{id:24,name:"KARAKÖY SOSİSLİ",cat:"KARAKÖY"},{id:25,name:"KARAKÖY SADE",cat:"KARAKÖY"},{id:26,name:"PİZZA",cat:"DİĞER"},{id:27,name:"TAHİNLİ",cat:"DİĞER"},{id:28,name:"KURABİYE",cat:"DİĞER"},{id:29,name:"OTLU PUAÇA",cat:"DİĞER"},{id:30,name:"YENİ TAHİNLİ",cat:"DİĞER"},{id:31,name:"BOYOZ",cat:"BOYOZ"},{id:32,name:"TAHİNLİ BOYOZ",cat:"BOYOZ"},{id:33,name:"ÇİKOLATALI BOYOZ",cat:"BOYOZ"},{id:34,name:"MİLFÖY BÜYÜK PEYNİRLİ",cat:"BOYOZ"},{id:35,name:"MİLFÖY BÜYÜK KIYMALI",cat:"BOYOZ"},{id:36,name:"MİLFÖY BÜYÜK PATATESLİ",cat:"BOYOZ"},{id:37,name:"DOMATES KAŞAR BOYOZ",cat:"BOYOZ"},{id:38,name:"ÇATAL PEYNİRLİ",cat:"ÇATAL"},{id:39,name:"ÇATAL KIYMALI",cat:"ÇATAL"},{id:40,name:"ÇATAL PATLICANLI",cat:"ÇATAL"},{id:41,name:"ÇATAL PATATESLİ",cat:"ÇATAL"}];
 const FV={koc:[120,40,10,3,3,7,5,8,7,10,3,0,3,0,15,5,3,3,20,15,30,5,5,5,5,10,3,10,15,2,25,15,5,0,0,0,15,10,15,2,5],merol:[70,0,0,0,0,0,5,3,3,0,0,0,0,0,7,7,0,0,15,15,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],inc:[30,15,0,0,0,5,0,2,2,0,0,0,0,0,6,2,2,2,5,10,20,2,2,2,0,2,2,0,0,0,10,3,5,0,0,0,3,2,3,0,0],eko:[20,20,0,0,0,0,0,5,5,5,5,5,5,5,5,2,2,2,10,5,10,5,2,2,0,3,2,5,15,0,10,5,0,0,0,0,5,4,5,0,3],seckin:[5,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,5,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],ogrt:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],buyuk:[15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]};
 const CATS=["SİMİT","AÇMA","KARAKÖY","DİĞER","BOYOZ","ÇATAL"];
@@ -142,30 +142,36 @@ const DT=["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi
 const MT=["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
 const fmt=ds=>{const d=new Date(ds+"T00:00:00");return d.getDate()+" "+MT[d.getMonth()]+" "+d.getFullYear()+" "+DT[d.getDay()]};
 const td=()=>new Date().toISOString().slice(0,10);
-const bFirst=()=>TPL.map((p,i)=>{const v={};SH.forEach(s=>{v[s.id]=FV[s.id][i]||0});return{...p,vals:v}});
-const blank=()=>TPL.map(p=>({...p,vals:Object.fromEntries(SH.map(s=>[s.id,0]))}));
+const bFirst=(shops)=>TPL.map((p,i)=>{const v={};shops.forEach(s=>{v[s.id]=FV[s.id]?FV[s.id][i]||0:0});return{...p,vals:v}});
+const blank=(shops)=>TPL.map(p=>({...p,vals:Object.fromEntries(shops.map(s=>[s.id,0]))}));
 const fbS=(k,p)=>db.ref("days/"+k).set(p);
 const fbL=k=>db.ref("days/"+k).once("value").then(s=>s.val());
 const fbA=()=>db.ref("days").once("value").then(s=>s.val()||{});
 const fbD=k=>db.ref("days/"+k).remove();
-const rT=p=>SH.reduce((s,sh)=>s+(p.vals[sh.id]||0),0);
-const dSum=(h,dk)=>{const p=h[dk];if(!p||!Array.isArray(p))return{shops:[],total:0};const st=SH.map(s=>({...s,total:p.reduce((a,x)=>a+(x.vals[s.id]||0),0)})).filter(s=>s.total>0);return{shops:st,total:st.reduce((a,s)=>a+s.total,0)}};
+const fbShopsLoad=()=>db.ref("config/shops").once("value").then(s=>s.val());
+const fbShopsSave=(s)=>db.ref("config/shops").set(s);
+const rT=(p,shops)=>shops.reduce((s,sh)=>s+(p.vals[sh.id]||0),0);
+const dSum=(h,dk,shops)=>{const p=h[dk];if(!p||!Array.isArray(p))return{shops:[],total:0};const st=shops.map(s=>({...s,total:p.reduce((a,x)=>a+(x.vals[s.id]||0),0)})).filter(s=>s.total>0);return{shops:st,total:st.reduce((a,s)=>a+s.total,0)}};
 
 function App(){
-  const [page,setPage]=useState("home"); // home | editor
+  const [page,setPage]=useState("home"); // home | editor | customers
   const [cur,setCur]=useState(td());
-  const [prods,setProds]=useState(bFirst());
+  const [shops,setShops]=useState(DEFAULT_SH);
+  const [prods,setProds]=useState(bFirst(DEFAULT_SH));
   const [loading,setLoading]=useState(true);
   const [syncing,setSyncing]=useState(false);
   const [online,setOnline]=useState(true);
   const [hist,setHist]=useState({});
-  const [modal,setModal]=useState(null); // null | {date, sources}
+  const [modal,setModal]=useState(null);
   const [showAdd,setShowAdd]=useState(false);
   const [nn,setNn]=useState("");const [nc,setNc]=useState("SİMİT");
   const [ec,setEc]=useState(null);const [ev,setEv]=useState("");
   const [search,setSearch]=useState("");
   const [toast,setToast]=useState(null);
   const [hf,setHf]=useState({from:"",to:""});
+  const [newShopName,setNewShopName]=useState("");
+  const [editShopId,setEditShopId]=useState(null);
+  const [editShopName,setEditShopName]=useState("");
   const iR=useRef(null);const aR=useRef(null);const sT=useRef(null);const lR=useRef(null);const sk=useRef(false);
 
   useEffect(()=>{if(ec&&iR.current)iR.current.focus()},[ec]);
@@ -175,7 +181,10 @@ function App(){
   const attach=dk=>{if(lR.current)lR.current();const ref=db.ref("days/"+dk);const h=ref.on("value",s=>{if(sk.current){sk.current=false;return}const d=s.val();if(d)setProds(d)});lR.current=()=>ref.off("value",h)};
 
   // Initial load
-  useEffect(()=>{(async()=>{try{setHist(await fbA());setOnline(true)}catch(e){setOnline(false)}setLoading(false)})();return()=>{if(lR.current)lR.current()}},[]);
+  useEffect(()=>{(async()=>{try{
+    const savedShops=await fbShopsLoad();
+    if(savedShops&&Array.isArray(savedShops)&&savedShops.length>0)setShops(savedShops);
+    setHist(await fbA());setOnline(true)}catch(e){setOnline(false)}setLoading(false)})();return()=>{if(lR.current)lR.current()}},[]);
 
   // Auto-save when editing
   useEffect(()=>{if(page!=="editor"||loading)return;if(sT.current)clearTimeout(sT.current);sT.current=setTimeout(async()=>{setSyncing(true);try{sk.current=true;await fbS(cur,prods);setHist(p=>({...p,[cur]:prods}))}catch(e){flash("Kayıt başarısız","#dc2626")}setSyncing(false)},800);return()=>clearTimeout(sT.current)},[prods,cur,page,loading]);
@@ -191,14 +200,14 @@ function App(){
       setModal({date:dk,sources:allDates.reverse()});
       setLoading(false);
     } else {
-      setProds(bFirst());attach(dk);setPage("editor");setLoading(false);
+      setProds(bFirst(shops));attach(dk);setPage("editor");setLoading(false);
     }
   };
 
   const modalPick=async(choice)=>{
     const dk=modal.date;setModal(null);setLoading(true);
-    if(choice==="blank"){setProds(blank())}
-    else{const src=hist[choice];if(src)setProds(JSON.parse(JSON.stringify(src)));else setProds(blank())}
+    if(choice==="blank"){setProds(blank(shops))}
+    else{const src=hist[choice];if(src)setProds(JSON.parse(JSON.stringify(src)));else setProds(blank(shops))}
     setCur(dk);attach(dk);setPage("editor");setLoading(false);
   };
 
@@ -209,10 +218,10 @@ function App(){
   // Editor functions
   const uv=useCallback((pid,sid,v)=>{setProds(p=>p.map(x=>x.id===pid?{...x,vals:{...x.vals,[sid]:Math.max(0,parseInt(v)||0)}}:x))},[]);
   const rm=useCallback(id=>{if(!confirm("Sil?"))return;setProds(p=>p.filter(x=>x.id!==id))},[]);
-  const add=useCallback(()=>{if(!nn.trim())return;const e={};SH.forEach(s=>e[s.id]=0);setProds(p=>[...p,{id:Date.now(),name:nn.trim().toUpperCase(),cat:nc,vals:e}]);setNn("");setShowAdd(false)},[nn,nc]);
+  const add=useCallback(()=>{if(!nn.trim())return;const e={};shops.forEach(s=>e[s.id]=0);setProds(p=>[...p,{id:Date.now(),name:nn.trim().toUpperCase(),cat:nc,vals:e}]);setNn("");setShowAdd(false)},[nn,nc,shops]);
   const fp=prods.filter(p=>!search||p.name.toLowerCase().includes(search.toLowerCase()));
   const cT=sid=>fp.reduce((s,p)=>s+(p.vals[sid]||0),0);
-  const gT=SH.reduce((s,sh)=>s+cT(sh.id),0);
+  const gT=shops.reduce((s,sh)=>s+cT(sh.id),0);
   const cc=(pid,sid,cv)=>{setEc(`${pid}-${sid}`);setEv(String(cv||0))};
   const cb=(pid,sid)=>{uv(pid,sid,ev);setEc(null)};
   const ck=(e,pid,sid)=>{if(e.key==="Enter")cb(pid,sid);if(e.key==="Escape")setEc(null)};
@@ -222,7 +231,7 @@ function App(){
   const fhDates=hDates.filter(dk=>{if(hf.from&&dk<hf.from)return false;if(hf.to&&dk>hf.to)return false;return true});
 
   const todayExists=!!hist[td()];
-  const todaySum=todayExists?dSum(hist,td()):{shops:[],total:0};
+  const todaySum=todayExists?dSum(hist,td(),shops):{shops:[],total:0};
 
   if(loading)return<div className="loading"><div className="spin"></div>Yükleniyor...</div>;
 
@@ -238,7 +247,7 @@ function App(){
           <div>📄 Boş liste ile başla</div>
           <div className="small">Tüm değerler sıfır</div>
         </button>
-        {modal.sources.map(d=>{const sm=dSum(hist,d);return<button key={d} className="opt" onClick={()=>modalPick(d)}>
+        {modal.sources.map(d=>{const sm=dSum(hist,d,shops);return<button key={d} className="opt" onClick={()=>modalPick(d)}>
           <div>📋 {fmt(d)} kopyala</div>
           <div className="small">{sm.total} adet · {sm.shops.length} şube</div>
         </button>})}
@@ -249,6 +258,7 @@ function App(){
     <div className="nav">
       <h1>🥯 Sipariş Takip</h1>
       <button className={`nav-btn ${page==="home"?"on":""}`} onClick={goHome}>Ana Sayfa</button>
+      <button className={`nav-btn ${page==="customers"?"on":""}`} onClick={()=>setPage("customers")}>Müşteriler</button>
       {page==="editor"&&<button className="nav-btn on">Düzenleme</button>}
       <div className="nav-right">
         <div className="sync"><span className="d" style={{background:syncing?"#fbbf24":online?"#86efac":"#fca5a5"}}></span>{syncing?"Kaydediliyor...":online?"Senkron":"Çevrimdışı"}</div>
@@ -268,7 +278,7 @@ function App(){
         <div className="actions">
           <button className="btn btn-main" onClick={()=>openDay(td())}>{todayExists?"Bugünü Düzenle":"Bugünü Oluştur"}</button>
           <span style={{position:"relative",display:"inline-block"}}><button className="btn btn-outline" onClick={()=>document.getElementById("datepick").showPicker()}>Başka Gün Aç</button><input id="datepick" type="date" style={{position:"absolute",bottom:0,left:0,width:1,height:1,opacity:0,pointerEvents:"none"}} onChange={e=>{if(e.target.value)openDay(e.target.value)}}/></span>
-          <button className="btn btn-outline" onClick={()=>{if(makeAllExcel(hist,SH))flash("Aktarıldı","var(--accent)");else flash("Kayıt yok","#f59e0b")}}>📊 Tüm Geçmişi Excel</button>
+          <button className="btn btn-outline" onClick={()=>{if(makeAllExcel(hist,shops))flash("Aktarıldı","var(--accent)");else flash("Kayıt yok","#f59e0b")}}>📊 Tüm Geçmişi Excel</button>
         </div>
       </div>
 
@@ -284,7 +294,7 @@ function App(){
 
       {fhDates.length===0?<div className="empty">Henüz kayıt yok. Bugünü oluşturarak başla!</div>
       :<div className="day-list">{fhDates.map(dk=>{
-        const sm=dSum(hist,dk);const pr=hist[dk];
+        const sm=dSum(hist,dk,shops);const pr=hist[dk];
         return<div key={dk} className="day-row" onDoubleClick={()=>openDay(dk)}>
           <div className="info">
             <div className="d-date">{fmt(dk)}</div>
@@ -293,7 +303,7 @@ function App(){
           <div className="d-total">{sm.total}</div>
           <div className="d-btns">
             <button onClick={()=>openDay(dk)}>Düzenle</button>
-            <button onClick={()=>{if(pr&&Array.isArray(pr)){makeExcel(pr,SH,fmt(dk),"Siparis_"+dk+".xlsx");flash("İndirildi","var(--accent)")}}}>📥 Excel</button>
+            <button onClick={()=>{if(pr&&Array.isArray(pr)){makeExcel(pr,shops,fmt(dk),"Siparis_"+dk+".xlsx");flash("İndirildi","var(--accent)")}}}>📥 Excel</button>
             <button style={{color:"var(--red)"}} onClick={()=>delDay(dk)}>Sil</button>
           </div>
         </div>
@@ -305,14 +315,14 @@ function App(){
       <div className="editor-bar">
         <button className="btn btn-sm btn-outline no-print" onClick={goHome}>← Geri</button>
         <div className="ed-date">{fmt(cur)}</div>
-        <button className="btn btn-sm btn-outline no-print" onClick={()=>{makeExcel(prods,SH,fmt(cur),"Siparis_"+cur+".xlsx");flash("İndirildi","var(--accent)")}}>📥 Excel</button>
+        <button className="btn btn-sm btn-outline no-print" onClick={()=>{makeExcel(prods,shops,fmt(cur),"Siparis_"+cur+".xlsx");flash("İndirildi","var(--accent)")}}>📥 Excel</button>
         <button className="btn btn-sm btn-outline no-print" onClick={()=>window.print()}>🖨</button>
-        <div className="ed-total">Toplam: {prods.reduce((s,p)=>s+rT(p),0)}</div>
+        <div className="ed-total">Toplam: {prods.reduce((s,p)=>s+rT(p,shops),0)}</div>
       </div>
       <div className="ed-actions no-print">
         <input type="text" placeholder="Ürün ara..." value={search} onChange={e=>setSearch(e.target.value)} style={{width:150}}/>
         <button className={`btn btn-sm ${showAdd?"btn-outline":"btn-main"}`} style={showAdd?{color:"var(--red)"}:{}} onClick={()=>setShowAdd(!showAdd)}>{showAdd?"İptal":"+ Yeni Ürün"}</button>
-        <button className="btn btn-sm btn-outline" onClick={()=>{if(confirm("Tüm değerler sıfırlansın mı?")){setProds(p=>p.map(x=>({...x,vals:Object.fromEntries(SH.map(s=>[s.id,0]))})));flash("Sıfırlandı","#78716c")}}}>Sıfırla</button>
+        <button className="btn btn-sm btn-outline" onClick={()=>{if(confirm("Tüm değerler sıfırlansın mı?")){setProds(p=>p.map(x=>({...x,vals:Object.fromEntries(shops.map(s=>[s.id,0]))})));flash("Sıfırlandı","#78716c")}}}>Sıfırla</button>
       </div>
       {showAdd&&<div className="add-bar no-print">
         <input ref={aR} type="text" placeholder="Ürün adı..." value={nn} onChange={e=>setNn(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()}/>
@@ -323,15 +333,15 @@ function App(){
         <table>
           <thead><tr>
             <th>Ürün Adı</th>
-            {SH.map(s=><th key={s.id}>{s.name}</th>)}
+            {shops.map(s=><th key={s.id}>{s.name}</th>)}
             <th>Toplam</th>
             <th className="no-print" style={{width:32,minWidth:32}}></th>
           </tr></thead>
           <tbody>{fp.map(p=>{
-            const tot=rT(p);
+            const tot=rT(p,shops);
             return<tr key={p.id}>
               <td>{p.name}</td>
-              {SH.map(s=>{
+              {shops.map(s=>{
                 const key=`${p.id}-${s.id}`,v=p.vals[s.id]||0,ed=ec===key;
                 return<td key={s.id} style={{borderLeft:"1px solid var(--border)"}}>
                   {ed?<input ref={iR} type="number" min="0" className="ci" value={ev} onChange={e=>setEv(e.target.value)} onBlur={()=>cb(p.id,s.id)} onKeyDown={e=>ck(e,p.id,s.id)}/>
@@ -348,7 +358,7 @@ function App(){
           })}</tbody>
           <tfoot><tr>
             <td>TOPLAM</td>
-            {SH.map(s=><td key={s.id}>{cT(s.id)||""}</td>)}
+            {shops.map(s=><td key={s.id}>{cT(s.id)||""}</td>)}
             <td style={{color:"#fbbf24",fontSize:15}}>{gT}</td>
             <td className="no-print"></td>
           </tr></tfoot>
@@ -359,6 +369,37 @@ function App(){
         <button className="btn btn-outline" onClick={goHome}>← Ana Sayfaya Dön</button>
       </div>
     </>}
+
+    {/* ════════ MÜŞTERİLER ════════ */}
+    {page==="customers"&&<div style={{maxWidth:600,margin:"0 auto",padding:"32px 20px"}}>
+      <h2 style={{fontSize:20,fontWeight:700,color:"var(--brown)",marginBottom:20}}>Müşteriler / Şubeler</h2>
+
+      {/* Mevcut müşteriler */}
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:24}}>
+        {shops.map((s,i)=>(
+          <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",background:"var(--card)",border:"1px solid var(--border)",borderRadius:10}}>
+            <span style={{color:"var(--text3)",fontSize:12,fontWeight:600,minWidth:24}}>{i+1}.</span>
+            {editShopId===s.id?<>
+              <input value={editShopName} onChange={e=>setEditShopName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&editShopName.trim()){const updated=shops.map(x=>x.id===s.id?{...x,name:editShopName.trim().toUpperCase()}:x);setShops(updated);fbShopsSave(updated);setEditShopId(null);flash("Güncellendi","var(--green)")}}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"2px solid var(--accent)",fontSize:14,fontWeight:600,outline:"none",fontFamily:"inherit"}}/>
+              <button className="btn btn-sm btn-main" onClick={()=>{if(editShopName.trim()){const updated=shops.map(x=>x.id===s.id?{...x,name:editShopName.trim().toUpperCase()}:x);setShops(updated);fbShopsSave(updated);setEditShopId(null);flash("Güncellendi","var(--green)")}}}>Kaydet</button>
+              <button className="btn btn-sm btn-outline" onClick={()=>setEditShopId(null)}>İptal</button>
+            </>:<>
+              <span style={{flex:1,fontSize:15,fontWeight:600}}>{s.name}</span>
+              <button className="btn btn-sm btn-outline" onClick={()=>{setEditShopId(s.id);setEditShopName(s.name)}}>Düzenle</button>
+              <button className="btn btn-sm btn-outline" style={{color:"var(--red)"}} onClick={()=>{if(shops.length<=1){flash("En az 1 müşteri olmalı","#dc2626");return}if(!confirm(s.name+" silinsin mi?"))return;const updated=shops.filter(x=>x.id!==s.id);setShops(updated);fbShopsSave(updated);flash("Silindi","#78716c")}}>Sil</button>
+            </>}
+          </div>
+        ))}
+      </div>
+
+      {/* Yeni müşteri ekle */}
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <input value={newShopName} onChange={e=>setNewShopName(e.target.value)} placeholder="Yeni müşteri adı..." onKeyDown={e=>{if(e.key==="Enter"&&newShopName.trim()){const id="shop_"+Date.now();const updated=[...shops,{id,name:newShopName.trim().toUpperCase()}];setShops(updated);fbShopsSave(updated);setNewShopName("");flash("Eklendi","var(--green)")}}} style={{flex:1,padding:"10px 14px",borderRadius:8,border:"1.5px solid var(--border)",fontSize:14,fontWeight:500,fontFamily:"inherit"}}/>
+        <button className="btn btn-main" onClick={()=>{if(!newShopName.trim())return;const id="shop_"+Date.now();const updated=[...shops,{id,name:newShopName.trim().toUpperCase()}];setShops(updated);fbShopsSave(updated);setNewShopName("");flash("Eklendi","var(--green)")}}>+ Ekle</button>
+      </div>
+
+      <p style={{marginTop:16,fontSize:12,color:"var(--text3)"}}>Müşteri ekleyince/silince yeni günlerde otomatik yansır. Eski kayıtlardaki veriler korunur.</p>
+    </div>}
   </div>);
 }
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
